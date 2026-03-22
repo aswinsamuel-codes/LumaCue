@@ -3,7 +3,7 @@ import { useDashboardStore, Zone, ZoneMode } from '@/store/useDashboardStore'
 
 const MODES: ZoneMode[] = ['Static', 'Pulse', 'Flash']
 
-export default function ZoneCard({ zone }: { zone: Zone }) {
+export default function ZoneCard({ zone, onDelete }: { zone: Zone; onDelete?: () => void }) {
   const { toggleZone, setZoneMode, setZoneSpeed, setZoneColor, activeColor } = useDashboardStore()
 
   return (
@@ -27,16 +27,29 @@ export default function ZoneCard({ zone }: { zone: Zone }) {
           <span className="text-white font-semibold text-sm">{zone.name}</span>
         </div>
 
-        {/* Toggle */}
-        <button
-          onClick={() => toggleZone(zone.id)}
-          className={`relative w-10 h-5 rounded-full transition-all duration-300 ${zone.enabled ? 'bg-blue-500' : 'bg-white/10'}`}
-        >
-          <div
-            className="absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform duration-300"
-            style={{ transform: zone.enabled ? 'translateX(20px)' : 'translateX(2px)' }}
-          />
-        </button>
+        <div className="flex items-center gap-1">
+          {/* Toggle */}
+          <button
+            onClick={() => toggleZone(zone.id)}
+            className={`relative w-10 h-5 rounded-full transition-all duration-300 ${zone.enabled ? 'bg-blue-500' : 'bg-white/10'}`}
+          >
+            <div
+              className="absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform duration-300"
+              style={{ transform: zone.enabled ? 'translateX(20px)' : 'translateX(2px)' }}
+            />
+          </button>
+
+          {/* Delete button */}
+          {onDelete && (
+            <button
+              onClick={onDelete}
+              className="w-5 h-5 rounded text-red-400/40 hover:text-red-400 hover:bg-red-500/10 transition-all text-xs flex items-center justify-center"
+              title="Delete zone"
+            >
+              ✕
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Mode selector */}

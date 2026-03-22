@@ -1,4 +1,6 @@
 import { create } from 'zustand'
+import { getWebSocketClient } from '@/lib/websocket-client'
+import type { WSMessage } from '@/lib/websocket-client'
 
 export type ZoneMode = 'Static' | 'Pulse' | 'Flash'
 
@@ -34,12 +36,18 @@ export interface LogEntry {
 
 interface DashboardState {
   connected: boolean
+  hardwareConnected: boolean
   zones: Zone[]
   activeColor: string
   favoriteColors: string[]
   presets: Preset[]
   logs: LogEntry[]
+  authenticated: boolean
   setConnected: (v: boolean) => void
+  setHardwareConnected: (v: boolean) => void
+  setAuthenticated: (v: boolean) => void
+  addZone: (name: string) => void
+  deleteZone: (id: string) => void
   toggleZone: (id: string) => void
   setZoneMode: (id: string, mode: ZoneMode) => void
   setZoneSpeed: (id: string, speed: number) => void
@@ -54,6 +62,7 @@ interface DashboardState {
   syncAll: () => void
   emergencyOff: () => void
   addLog: (type: LogType, message: string) => void
+  initializeWebSocket: () => void
 }
 
 function timestamp() {
@@ -64,8 +73,19 @@ function makeId() {
   return Math.random().toString(36).slice(2, 9)
 }
 
+// WebSocket client instance
+let wsClient: ReturnType<typeof getWebSocketClient> | null = null
+
+function sendToHardware(command: any) {
+  if (wsClient && wsClient.isConnected()) {
+    wsClient.send(command)
+  }
+}
+
 export const useDashboardStore = create<DashboardState>((set, get) => ({
   connected: true,
+  hardwareConnected: false,
+  authenticated: false,
   zones: [
     { id: 'a', name: 'Zone A', enabled: true, mode: 'Static', speed: 50, color: '#3B82F6' },
     { id: 'b', name: 'Zone B', enabled: true, mode: 'Pulse', speed: 60, color: '#A855F7' },
@@ -101,6 +121,54 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
   ],
 
   setConnected: (v) => set({ connected: v }),
+  setHardwareConnected: (v) => set({ hardwareConnected: v }),
+  setAuthenticated: (v) => set({ authenticated: v }),
+
+  initializeWebSocket: () => {
+    if (typeof window === 'undefined') return
+
+    const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8080'
+    wsClient = getWebSocketClient(wsUrl)
+
+    wsClient.onMessage((message: WSMessage) => {
+      switch (message.type) {
+        case 'connection':
+          get().setHardwareConnected(true)
+          get().addLog('INFO', 'Connected to hardware controller')
+          break
+        
+        case 'log':
+          get().addLog(message.logType, message.message)
+          break
+        
+        case 'error':
+          get().addLog('ERROR', message.message)
+          break
+        
+        case 'gpio_status':
+          // Update zones with hardware status if needed
+          break
+      }
+    })
+
+    wsClient.connect().catch(error => {
+      // Hardware not available - continue without it
+      get().setHardwareConnected(false)
+    })
+  },
+
+  addZone: (name) => {
+    const id = makeId()
+    const newZone: Zone = { id, name, enabled: false, mode: 'Static', speed: 50, color: '#3B82F6' }
+    set((s) => ({ zones: [...s.zones, newZone] }))
+    get().addLog('ACTION', `${name} created`)
+  },
+
+  deleteZone: (id) => {
+    const zone = get().zones.find((z) => z.id === id)
+    set((s) => ({ zones: s.zones.filter((z) => z.id !== id) }))
+    if (zone) get().addLog('WARN', `${zone.name} deleted`)
+  },
 
   toggleZone: (id) => {
     const zone = get().zones.find((z) => z.id === id)
@@ -108,22 +176,35 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
     const enabled = !zone.enabled
     set((s) => ({ zones: s.zones.map((z) => z.id === id ? { ...z, enabled } : z) }))
     get().addLog('ACTION', `${zone.name} turned ${enabled ? 'ON' : 'OFF'}`)
+    
+    // Send to hardware
+    sendToHardware({ zone: zone.name, action: 'toggle', enabled })
   },
 
   setZoneMode: (id, mode) => {
     const zone = get().zones.find((z) => z.id === id)
     set((s) => ({ zones: s.zones.map((z) => z.id === id ? { ...z, mode } : z) }))
-    if (zone) get().addLog('INFO', `${zone.name} → Mode: ${mode}`)
+    if (zone) {
+      get().addLog('INFO', `${zone.name} → Mode: ${mode}`)
+      sendToHardware({ zone: zone.name, action: 'setMode', mode, speed: zone.speed })
+    }
   },
 
   setZoneSpeed: (id, speed) => {
+    const zone = get().zones.find((z) => z.id === id)
     set((s) => ({ zones: s.zones.map((z) => z.id === id ? { ...z, speed } : z) }))
+    if (zone) {
+      sendToHardware({ zone: zone.name, action: 'setSpeed', speed })
+    }
   },
 
   setZoneColor: (id, color) => {
     const zone = get().zones.find((z) => z.id === id)
     set((s) => ({ zones: s.zones.map((z) => z.id === id ? { ...z, color } : z) }))
-    if (zone) get().addLog('INFO', `${zone.name} → Color ${color.toUpperCase()}`)
+    if (zone) {
+      get().addLog('INFO', `${zone.name} → Color ${color.toUpperCase()}`)
+      sendToHardware({ zone: zone.name, action: 'setColor', color })
+    }
   },
 
   setActiveColor: (color) => set({ activeColor: color }),
@@ -158,15 +239,22 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
     const color = get().activeColor
     set((s) => ({ zones: s.zones.map((z) => ({ ...z, color })) }))
     get().addLog('SYNC', `Active color ${color.toUpperCase()} applied to all zones`)
+    
+    // Send to all zones
+    get().zones.forEach(zone => {
+      sendToHardware({ zone: zone.name, action: 'setColor', color })
+    })
   },
 
   syncAll: () => {
     get().addLog('SYNC', 'All zones synchronized')
+    sendToHardware({ zone: '', action: 'syncAll' })
   },
 
   emergencyOff: () => {
     set((s) => ({ zones: s.zones.map((z) => ({ ...z, enabled: false })) }))
     get().addLog('ERROR', 'EMERGENCY OFF — All zones disabled')
+    sendToHardware({ zone: '', action: 'emergencyOff' })
   },
 
   addLog: (type, message) => {
