@@ -71,7 +71,7 @@ export function compileBenchCues(project: ShowProject, zoneIds: string[], dancer
   return result
 }
 
-function compileWithStep(project: ShowProject, zoneIds: string[], dancer: number, STEP_MS: number, output: BenchOutput): BenchCompileResult {
+function compileWithStep(project: ShowProject, zoneIds: string[], dancer: number, stepMs: number, output: BenchOutput): BenchCompileResult {
   const notes = new Set<string>()
   const cues: BenchCue[] = []
 
@@ -110,7 +110,7 @@ function compileWithStep(project: ShowProject, zoneIds: string[], dancer: number
     }
     const rgb = hexToRgb(c.color)
     const steps = (from: number, to: number, fn: (t0: number, t1: number) => void) => {
-      for (let t = from; t < to; t += STEP_MS) fn(t, Math.min(to, t + STEP_MS))
+      for (let t = from; t < to; t += stepMs) fn(t, Math.min(to, t + stepMs))
     }
 
     switch (c.effect) {
@@ -150,19 +150,19 @@ function compileWithStep(project: ShowProject, zoneIds: string[], dancer: number
       case 'fade': {
         const c2 = hexToRgb(c.color2)
         steps(start, end, (t0, t1) => {
-          const u = Math.min(1, (t0 + STEP_MS / 2 - c.startMs) / Math.max(1, c.durationMs))
+          const u = Math.min(1, (t0 + stepMs / 2 - c.startMs) / Math.max(1, c.durationMs))
           push(t0, t1, mask, 'FX_SOLID', [lerp(rgb[0], c2[0], u), lerp(rgb[1], c2[1], u), lerp(rgb[2], c2[2], u)])
         })
-        notes.add(`Fade is played in ${STEP_MS} ms colour steps.`)
+        notes.add(`Fade is played in ${stepMs} ms colour steps.`)
         break
       }
       case 'rainbow': {
         const hz = speedHz(c.speed)
         steps(start, end, (t0, t1) => {
-          const t = (t0 + STEP_MS / 2 - c.startMs) / 1000
+          const t = (t0 + stepMs / 2 - c.startMs) / 1000
           idx.forEach((z, k) => push(t0, t1, ZONE_BITS[z], 'FX_SOLID', hsv(((k + 0.5) / idx.length + (t * hz) / 4) % 1)))
         })
-        notes.add(`Rainbow is played as one colour per zone, changing every ${STEP_MS} ms.`)
+        notes.add(`Rainbow is played as one colour per zone, changing every ${stepMs} ms.`)
         break
       }
     }
