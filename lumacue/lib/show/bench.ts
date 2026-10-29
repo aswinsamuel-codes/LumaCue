@@ -350,13 +350,22 @@ export function benchFidelity(
   return { matchPct: total ? (100 * good) / total : 100, colourLossPct: lit ? (100 * lost) / lit : 0, issues }
 }
 
+/** The hardware settings written into a costume sketch besides its cues. */
+export interface BenchHardware {
+  output: BenchOutput
+  zoneLeds: number[]
+  brightnessPct: number
+}
+
 /**
- * Identifies exactly what a costume's firmware will play: its cue table and
- * the show length. If this changes after a download, the costume needs a re-flash.
+ * Identifies exactly what a costume's firmware will do: its cue table, the
+ * show length and, for the strip build, zone sizes and brightness. If this
+ * changes after a download, the costume needs a re-flash.
  */
-export function benchFingerprint(project: ShowProject, zoneIds: string[], dancer: number) {
+export function benchFingerprint(project: ShowProject, zoneIds: string[], dancer: number, hw?: BenchHardware) {
   const { cues } = compileBenchCues(project, zoneIds, dancer)
-  const text = `${Math.round(project.lengthMs)}|` + cues.map((c) => `${c.startMs},${c.durationMs},${c.zoneMask},${c.fx},${c.r},${c.g},${c.b},${c.param}`).join(';')
+  const settings = !hw ? '' : hw.output === '5mm' ? '5mm|' : `strip:${benchZoneLeds(hw.zoneLeds).join(',')}:${Math.round(hw.brightnessPct)}|`
+  const text = `${settings}${Math.round(project.lengthMs)}|` + cues.map((c) => `${c.startMs},${c.durationMs},${c.zoneMask},${c.fx},${c.r},${c.g},${c.b},${c.param}`).join(';')
   let h = 0x811c9dc5
   for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 0x01000193)
   return (h >>> 0).toString(16).padStart(8, '0')

@@ -174,6 +174,17 @@ describe('benchFingerprint', () => {
     expect(benchFingerprint({ ...p, lengthMs: 9000 }, ZONE_IDS, 0)).not.toBe(fp)
     expect(benchFingerprint({ ...p, clips: [{ ...p.clips[0], color: '#00FF00' }, p.clips[1]] }, ZONE_IDS, 0)).not.toBe(fp)
   })
+  it('changes with the strip settings written into the sketch', async () => {
+    const { benchFingerprint } = await import('@/lib/show/bench')
+    const hw = { output: 'strip' as const, zoneLeds: [20, 20, 20], brightnessPct: 25 }
+    const fp = benchFingerprint(p, ZONE_IDS, 0, hw)
+    expect(benchFingerprint(p, ZONE_IDS, 0, { ...hw })).toBe(fp)
+    expect(benchFingerprint(p, ZONE_IDS, 0, { ...hw, zoneLeds: [30, 15, 30] })).not.toBe(fp)
+    expect(benchFingerprint(p, ZONE_IDS, 0, { ...hw, brightnessPct: 40 })).not.toBe(fp)
+    expect(benchFingerprint(p, ZONE_IDS, 0, { ...hw, output: '5mm' })).not.toBe(fp)
+    // 5 mm builds ignore strip settings
+    expect(benchFingerprint(p, ZONE_IDS, 0, { ...hw, output: '5mm', brightnessPct: 90 })).toBe(benchFingerprint(p, ZONE_IDS, 0, { ...hw, output: '5mm' }))
+  })
   it("ignores edits to other dancers' tracks", async () => {
     const { benchFingerprint } = await import('@/lib/show/bench')
     const fp = benchFingerprint(p, ZONE_IDS, 0)

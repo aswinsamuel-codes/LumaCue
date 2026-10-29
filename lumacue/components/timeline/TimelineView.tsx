@@ -139,7 +139,7 @@ export default function TimelineView({ active }: { active: boolean }) {
       a.click()
       URL.revokeObjectURL(a.href)
       for (const d of all ? Array.from({ length: project.dancers }, (_, i) => i) : [arduino.dancer]) {
-        recordDownload(d, { fingerprint: benchFingerprint(project, zoneIds, d), output: arduino.output, downloadedAt: Date.now() })
+        recordDownload(d, { fingerprint: benchFingerprint(project, zoneIds, d, { output: arduino.output, ...strip }), output: arduino.output, downloadedAt: Date.now() })
       }
       addLog('SYNC', `Show · firmware for ${all ? `all ${project.dancers} dancers` : `Dancer ${arduino.dancer + 1}`} downloaded (${folder}.zip, ${formatShowTime(project.lengthMs)})`)
       setArduino({ ...arduino, busy: false })

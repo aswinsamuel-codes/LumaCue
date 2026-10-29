@@ -29,9 +29,10 @@ export default function ShowModeView() {
     const ids = zones.map((z) => z.id)
     return Array.from({ length: project.dancers }, (_, d) => {
       const rec = flashed[d]
-      return { dancer: d, state: !rec ? 'never' : rec.fingerprint === benchFingerprint(project, ids, d) ? 'ok' : 'stale' } as const
+      const hw = rec && { output: rec.output, zoneLeds: zones.map((z) => z.leds), brightnessPct: brightness }
+      return { dancer: d, state: !rec || !hw ? 'never' : rec.fingerprint === benchFingerprint(project, ids, d, hw) ? 'ok' : 'stale' } as const
     })
-  }, [project, zones, flashed])
+  }, [project, zones, flashed, brightness])
   const staleCount = firmware.filter((f) => f.state !== 'ok').length
 
   // With a speaker delay, the music starts now and the costumes when the audience hears it.
