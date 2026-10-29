@@ -15,6 +15,8 @@
 | [software_architecture.md](software_architecture.md) | Draft for review — platform decision open |
 | [hardware_components_review.md](hardware_components_review.md) | Done (analysis only; parts untested, prices unverified) |
 | [handband_and_costume_layers.md](handband_and_costume_layers.md) | Idea for review: hand-band + costume layers and show sections; Light Dance Pro review |
+| [autonomous_session_report.md](autonomous_session_report.md) | 30 Oct 2026 software session: what changed, what was verified, what the owner needs to do (branch `lumacue/autonomous-session`, not pushed) |
+| [../firmware/esp32/](../firmware/esp32/README.md) | ESP32 + ESP-NOW costume and base sketches, same protocol as the bench. **Written, not yet compiled** |
 | [../firmware/bench_sync_test/](../firmware/bench_sync_test/README.md) | Base + test-costume firmware, wiring, test plan T1–T11. Compiles for Nano; **not yet run on hardware** |
 
 ## Not started (created when the work is actually done)
