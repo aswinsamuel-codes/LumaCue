@@ -9,7 +9,7 @@ export default function LoginPage() {
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault()
-    if (password === 'admin.pov.stage') {
+    if (password === 'admin.lumacue') {
       setAuthenticated(true)
       addLog('INFO', 'User authenticated successfully')
     } else {
