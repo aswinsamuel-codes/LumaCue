@@ -341,8 +341,8 @@ export default function TimelineView({ active }: { active: boolean }) {
                     Costume matches preview{arduino.output === '5mm' ? ' (as far as red/green LEDs can)' : ''}: {Math.round(preflight.fidelity.matchPct)} %
                   </span>
                   {arduino.output === '5mm' && preflight.fidelity.colourLossPct >= 5 && (
-                    <span className="text-yellow-300" title="5 mm bi-colour LEDs only make red, green and yellow. Blue, cyan, purple and white come out green, red, yellow or dark">
-                      {Math.round(preflight.fidelity.colourLossPct)} % of lit time uses colours these LEDs can&apos;t make
+                    <span className="text-yellow-300" title="5 mm bi-colour LEDs are on or off, in red, green or yellow only. Blue, cyan, purple and white come out green, red, yellow or dark, and dim parts of fades and pulses come out dark">
+                      {Math.round(preflight.fidelity.colourLossPct)} % of lit time uses colours or dim levels these LEDs can&apos;t show
                     </span>
                   )}
                   <span className={preflight.cues > CUE_BUDGET ? 'text-red-300' : 'text-white/50'}>

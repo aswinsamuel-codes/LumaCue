@@ -297,7 +297,7 @@ export interface FidelityIssue {
 
 export interface FidelityReport {
   matchPct: number          // share of (time × zone) samples where costume and preview agree
-  /** 5 mm only: share of lit samples whose colour a red/green LED can't make (blue, purple, white…). */
+  /** 5 mm only: share of lit samples a red/green on/off LED can't show (blue, purple, white…, or too dim to switch on). */
   colourLossPct: number
   issues: FidelityIssue[]   // clips where they disagree most, worst first
 }
