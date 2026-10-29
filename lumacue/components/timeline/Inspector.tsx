@@ -56,7 +56,7 @@ export default function Inspector({ timeMs, audioLoaded }: { timeMs: number; aud
         <div className="flex flex-col gap-3">
           <p className="text-white text-sm font-semibold">{info.label} <span className="text-white/30 text-xs font-normal">· {info.hint}</span></p>
 
-          <div>
+          {!info.noColor && <div>
             <p className={label}>{info.usesColor2 ? 'FROM COLOUR' : 'COLOUR'}</p>
             <div className="flex gap-1 flex-wrap items-center">
               <input type="color" value={clip.color} onFocus={checkpoint} onChange={(e) => updateClip(clip.id, { color: e.target.value })} className="w-8 h-6 bg-transparent cursor-pointer" aria-label="Colour" />
@@ -64,7 +64,7 @@ export default function Inspector({ timeMs, audioLoaded }: { timeMs: number; aud
                 <button key={c} onClick={() => change({ color: c })} className="w-5 h-5 rounded border border-white/20" style={{ background: c }} aria-label={c} />
               ))}
             </div>
-          </div>
+          </div>}
 
           {info.usesColor2 && (
             <div>

@@ -8,8 +8,8 @@
  */
 import type { CostumeLayout } from '@/lib/show/body'
 import { ALL_DANCERS } from '@/lib/show/model'
-import type { ShowProject } from '@/lib/show/model'
-import { frameMilliamps, renderDancer } from '@/lib/show/render'
+import type { Clip, ShowProject } from '@/lib/show/model'
+import { frameMilliamps, renderDancer, speedHz } from '@/lib/show/render'
 
 export interface ShowPower {
   avgMa: number
@@ -32,27 +32,42 @@ export function showPower(project: ShowProject, layout: CostumeLayout, dancer: n
     renderDancer(project, layout, dancer, t, frame)
     return frameMilliamps(frame, 100)
   }
-  let sum = 0, n = 0, peakMa = 0, peakAtMs = 0
+  let sum = 0, weight = 0, peakMa = 0, peakAtMs = 0
   const peak = (ma: number, t: number) => { if (ma > peakMa) { peakMa = ma; peakAtMs = t } }
 
-  // Average: one sample at a random point in each step (unbiased, no aliasing with flashing effects).
+  // Average: one sample at a random point in each step (unbiased, no aliasing with flashing
+  // effects), weighted by the step's length so a short last step doesn't count as a full one.
   for (let k = 0; k * stepMs < project.lengthMs; k++) {
-    const t = Math.min(project.lengthMs - 1, (k + jitter(k)) * stepMs)
+    const from = k * stepMs, len = Math.min(stepMs, project.lengthMs - from)
+    const t = from + jitter(k) * len
     const ma = at(t)
-    sum += ma
-    n++
+    sum += ma * len
+    weight += len
     peak(ma, t)
   }
-  // Peak: strobes, flashes and pulses are fully lit at their first instant, which a grid can step over.
+  // Peak: also look where each clip is brightest, which a grid can step over.
   for (const c of project.clips) {
     if (c.track !== ALL_DANCERS && c.track !== dancer) continue
-    if (c.startMs >= project.lengthMs) continue
-    const t = c.startMs + 1
-    peak(at(t), t)
+    for (const t of brightestMoments(c)) if (t >= 0 && t < project.lengthMs) peak(at(t), t)
   }
 
-  const avgMa = n ? sum / n : 0
+  const avgMa = weight ? sum / weight : 0
   return scalePower({ avgMa, peakMa, peakAtMs, mAh: (avgMa * project.lengthMs) / 3_600_000 }, brightnessPct)
+}
+
+/**
+ * Times at which a clip is at its brightest: strobes/flashes, solids and
+ * twinkles light up at the start, wipes and fades towards white at the end,
+ * a pulse half a period in.
+ */
+function brightestMoments(c: Clip): number[] {
+  if (c.durationMs <= 2) return []
+  const start = c.startMs + 1, end = c.startMs + c.durationMs - 1
+  if (c.effect === 'pulse') {
+    const firstPeak = c.startMs + 1000 / speedHz(c.speed)
+    return [firstPeak < end ? firstPeak : end]
+  }
+  return [start, end]
 }
 
 /** A 100 % result at another brightness cap. */
@@ -70,7 +85,7 @@ export interface PowerSummary {
 
 /** Every dancer at 100 % brightness; scale with scaleSummary(). */
 export function powerSummary(project: ShowProject, layout: CostumeLayout, stepMs = 100): PowerSummary {
-  const all = Array.from({ length: project.dancers }, (_, d) => ({ dancer: d, power: showPower(project, layout, d, 100, stepMs) }))
+  const all = Array.from({ length: Math.max(1, project.dancers) }, (_, d) => ({ dancer: d, power: showPower(project, layout, d, 100, stepMs) }))
   const pick = (better: (a: ShowPower, b: ShowPower) => boolean) => all.reduce((best, x) => (better(x.power, best.power) ? x : best))
   return { busiest: pick((a, b) => a.avgMa > b.avgMa), highestPeak: pick((a, b) => a.peakMa > b.peakMa) }
 }

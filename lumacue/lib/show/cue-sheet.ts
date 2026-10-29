@@ -12,8 +12,8 @@ export interface CueSheetZone {
 
 const csvCell = (v: string | number) => {
   let s = String(v)
-  // Names starting with = + - @ would run as formulas in Excel / Sheets: keep them as text.
-  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`
+  // Names that would run as formulas in Excel / Sheets (=…, +…, @…, -1…, -A1, -SUM(…)) stay text.
+  if (/^[=+@\t\r]/.test(s) || /^-[\d.(=+@]|^-[A-Za-z]+\d|^-[A-Za-z]+\(/.test(s)) s = `'${s}`
   return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
 }
 

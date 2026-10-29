@@ -132,7 +132,7 @@ export default function TimelineView({ active }: { active: boolean }) {
   }, [arduino, project, zoneIds, layout, zones])
 
   // Power for the strip build: at 100 % once per show edit, scaled to the brightness cap.
-  const dialogDancer = arduino?.dancer ?? null
+  const dialogDancer = arduino && arduino.output === 'strip' ? arduino.dancer : null
   const power100 = useMemo(() => (dialogDancer === null ? null : showPower(project, layout, dialogDancer)), [dialogDancer, project, layout])
   const power = power100 && scalePower(power100, brightness)
 
@@ -342,7 +342,7 @@ export default function TimelineView({ active }: { active: boolean }) {
                     {preflight.cues} cues (fits ≈ {CUE_BUDGET})
                   </span>
                   {arduino.output === '5mm' ? (
-                    <span className="text-white/50" title="Three bi-colour LEDs, each die about 20 mA when on">Power: 5 mm LEDs draw at most ~120 mA</span>
+                    <span className="text-white/50" title="Three bi-colour LEDs, each die about 20 mA when on. They are switched on or off, so the brightness cap doesn't apply">Power: 5 mm LEDs draw at most ~120 mA (on/off, no brightness cap)</span>
                   ) : power && (
                     <span className={power.peakMa > CURRENT_LIMIT_MA ? 'text-yellow-300' : 'text-white/50'} title="From the preview's LED colours at the brightness cap (planning figure: ~20 mA per colour channel). The bank runtime assumes 60 % of its label is usable and ~100 mA for the controller">
                       Power: avg {Math.round(power.avgMa)} mA · peak {Math.round(power.peakMa)} mA at {formatShowTime(power.peakAtMs)} · {power.mAh.toFixed(0)} mAh per run · 5,000 mAh bank ≈ {runtimeHours(power.avgMa, 5000).toFixed(1)} h

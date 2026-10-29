@@ -37,6 +37,20 @@ describe('show power', () => {
     expect(s.highestPeak.dancer).toBe(1)
   })
 
+  it('finds the peak of a slow pulse and the end of a wipe, between grid points', () => {
+    const pulse = project([clip({ effect: 'pulse', speed: 0, durationMs: 9000, color: '#FFFFFF' })], { lengthMs: 10000 }) // 0.25 Hz: brightest 4 s in
+    expect(showPower(pulse, layout, 0, 100, 2500).peakMa).toBeCloseTo(30 * 60, 0)
+    const wipe = project([clip({ effect: 'wipe', durationMs: 3000, color: '#FFFFFF' })], { lengthMs: 10000 })
+    expect(showPower(wipe, layout, 0, 100, 5000).peakMa).toBeCloseTo(30 * 60, 0)
+  })
+
+  it('weights a short last step by its length, and copes with no dancers', () => {
+    // all dark except a full-white blip in the final 50 ms
+    const p = project([clip({ startMs: 10000, durationMs: 50, color: '#FFFFFF' })], { lengthMs: 10050 })
+    expect(showPower(p, layout, 0, 100, 250).avgMa).toBeLessThan(30 * 60 * 0.01)
+    expect(() => powerSummary(project([], { dancers: 0 }), layout)).not.toThrow()
+  })
+
   it('estimates power-bank runtime with the controller included', () => {
     expect(runtimeHours(400, 5000)).toBeCloseTo(3000 / 500, 6)
   })
