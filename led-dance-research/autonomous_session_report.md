@@ -7,9 +7,9 @@
 ## 0. How the work was checked
 
 Every change went through the same loop: **build → `npm run check` (types + lint + tests) → browser smoke tests → commit**.
-- **Tests:** 0 at the start, **89 now** (+1 that needs FastLED), all passing.
+- **Tests:** 0 at the start, **99 now** (+2 that need extra toolchains), all passing.
 - **Firmware:** both sketches were compiled with the Arduino IDE's own `arduino-cli` after every firmware change, plus an end-to-end test that exports a 3-min show and compiles it.
-- **UI:** checked in real Edge (headless Playwright) with 5 scripted walkthroughs and screenshots, including at 1366 × 768.
+- **UI:** checked in real Edge (headless Playwright) with 7 scripted walkthroughs and screenshots, including at 1366 × 768. They run before every UI commit and fail on any page or console error.
 - **Not tested on hardware:** nothing has been run on a real Nano/radio. Simulations are labelled as such.
 
 ## 1. What changed, by area
@@ -56,7 +56,9 @@ Every change went through the same loop: **build → `npm run check` (types + li
 - **Preflight** in the firmware dialog: how closely the costume matches the preview, cue count vs budget, clips that will look different (click to jump). On 5 mm, the share of the show the LEDs can't colour.
 - **Sections** (your *hand bands, then costume* idea): named time ranges where chosen zones stay dark. Quick add: Hands only / Costume only / Everything. Exported exactly; covered by undo.
 - **Costume templates:** Bench test, Hand bands + jacket, Hand bands only, Full suit.
-- **Bench 5 mm** auto-cue palette: red, green and yellow only, no rainbow.
+- **Bench 5 mm** auto-cue palette: red, green and yellow only, no rainbow. On 5 mm LEDs a chase now runs *across* the three LEDs (it was stuck on).
+- **Spread across dancers** (the hand-sweep look): turns a clip into a staggered copy per dancer, D1 → last, last → D1, centre out or edges in. One undo step.
+- The **→ Costume firmware** button shows how many costumes need new firmware.
 
 ### ESP32 costume + base (the planned final controller), ahead of the hardware
 - `firmware/esp32/costume` and `firmware/esp32/base`: ESP-NOW broadcast instead of NRF24, WS2812B strip, 1 A current cap, BOOT button = START/BLACKOUT on the base.
@@ -69,6 +71,7 @@ Every change went through the same loop: **build → `npm run check` (types + li
 - **Show files carry their costume setup**, so a show made on one laptop opens correctly on the venue laptop.
 - **Costume setup is saved in the browser** (it reset to 3 × 20 on every reload).
 - Lint is clean across the whole app. The README now has real run, workflow and test instructions.
+- The production build no longer traces the whole project into the server bundle (firmware API route warning).
 
 ### Performance (10 dancers × 154 LEDs, 178 clips)
 Preview frame 0.27 ms · costume-view recompile ×10 3.9 ms · preflight 76 ms · song analysis 85 ms. No work needed.
