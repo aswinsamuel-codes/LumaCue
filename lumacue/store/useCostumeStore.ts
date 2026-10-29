@@ -78,7 +78,7 @@ function onBaseLine(line: string) {
     useCostumeStore.setState({ musicSync: false })
     return
   }
-  const len = /len=(\d+)/.exec(line)
+  const len = /\blen=(\d+)\b/.exec(line)
   if (len) useCostumeStore.setState({ baseShowLengthMs: Number(len[1]) })
   log('INFO', `Base: ${line}`)
   if (line === 'show ended') store.showEnded()
