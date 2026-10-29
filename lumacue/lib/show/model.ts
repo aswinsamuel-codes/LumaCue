@@ -20,6 +20,19 @@ export interface Clip {
   speed: number     // 0–100
 }
 
+/**
+ * A named part of the show in which some costume zones stay dark whatever the
+ * clips say, e.g. "Hands only" (everything but the hand bands dark), then
+ * "Full costume". Overlapping sections combine: a zone dark in either is dark.
+ */
+export interface ShowSection {
+  id: string
+  name: string
+  startMs: number
+  endMs: number
+  darkZones: string[]   // costume zone ids
+}
+
 export interface ShowProject {
   version: 1
   name: string
@@ -27,6 +40,20 @@ export interface ShowProject {
   lengthMs: number
   audioName: string | null
   clips: Clip[]
+  sections?: ShowSection[]   // optional, so older show files still open
+}
+
+/** Zones kept dark by sections at time t. */
+export function darkZonesAt(project: ShowProject, t: number): Set<string> | null {
+  if (!project.sections?.length) return null
+  let dark: Set<string> | null = null
+  for (const s of project.sections) {
+    if (t >= s.startMs && t < s.endMs && s.darkZones.length) {
+      dark ??= new Set()
+      for (const z of s.darkZones) dark.add(z)
+    }
+  }
+  return dark
 }
 
 export interface EffectInfo {
@@ -151,6 +178,24 @@ export function parseShowProject(x: unknown): ParseResult {
     if (fixed) repaired++
     clips.push({ id, track, startMs, durationMs, effect, color, color2, zones, speed })
   }
+  const sections: ShowSection[] = []
+  if (raw.sections !== undefined) {
+    let badSections = 0
+    for (const s of Array.isArray(raw.sections) ? raw.sections : []) {
+      const r = (s && typeof s === 'object' ? s : {}) as Record<string, unknown>
+      const startMs = num(r.startMs), endMs = num(r.endMs)
+      if (!(startMs >= 0) || !(endMs > startMs)) { badSections++; continue }
+      sections.push({
+        id: typeof r.id === 'string' && r.id ? r.id : makeId(),
+        name: typeof r.name === 'string' && r.name.trim() ? r.name : 'Section',
+        startMs,
+        endMs: Math.min(endMs, lengthMs),
+        darkZones: Array.isArray(r.darkZones) ? r.darkZones.filter((z): z is string => typeof z === 'string') : [],
+      })
+    }
+    if (!Array.isArray(raw.sections)) badSections++
+    if (badSections) warnings.push(`${badSections} section${badSections > 1 ? 's' : ''} couldn't be read and ${badSections > 1 ? 'were' : 'was'} left out`)
+  }
   if (dropped) warnings.push(`${dropped} clip${dropped > 1 ? 's' : ''} couldn't be read and ${dropped > 1 ? 'were' : 'was'} left out`)
   if (repaired) warnings.push(`${repaired} clip${repaired > 1 ? 's' : ''} had missing or invalid settings and ${repaired > 1 ? 'were' : 'was'} repaired`)
 
@@ -164,6 +209,7 @@ export function parseShowProject(x: unknown): ParseResult {
       lengthMs,
       audioName: typeof raw.audioName === 'string' ? raw.audioName : null,
       clips,
+      ...(sections.length ? { sections: sections.sort((a, b) => a.startMs - b.startMs) } : {}),
     },
   }
 }

@@ -71,5 +71,5 @@ export function clickTrack(bpm: number, seconds: number, sampleRate = 22050) {
 }
 
 /** Bench cues without the editor-only fields, as they appear in the C table. */
-export const tableOf = (cues: { source: unknown; effect: unknown }[]) =>
-  cues.map((c) => Object.fromEntries(Object.entries(c).filter(([k]) => k !== 'source' && k !== 'effect')))
+export const tableOf = (cues: { source: unknown; effect: unknown; section?: unknown }[]) =>
+  cues.map((c) => Object.fromEntries(Object.entries(c).filter(([k]) => k !== 'source' && k !== 'effect' && k !== 'section')))

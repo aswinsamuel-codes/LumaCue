@@ -121,14 +121,34 @@ async function sendToBase(command: BaseCommand) {
   }
 }
 
+// Matches the bench firmware: 3 zones × 20 LEDs (1 m of 60 LED/m)
+const DEFAULT_ZONES: CostumeZone[] = [
+  { id: 'a', name: 'Zone A — arms', leds: 20, placement: 'arms' },
+  { id: 'b', name: 'Zone B — chest', leds: 20, placement: 'chest' },
+  { id: 'c', name: 'Zone C — legs', leds: 20, placement: 'legs' },
+]
+const COSTUME_KEY = 'lumacue.costume.v1'
+const PLACEMENT_IDS = new Set<string>(PLACEMENTS.map((pl) => pl.id))
+
+/** Costume setup saved in this browser; falls back to the defaults if missing or damaged. */
+function loadCostume(): { zones: CostumeZone[]; brightness: number } {
+  try {
+    const raw = typeof window !== 'undefined' ? window.localStorage.getItem(COSTUME_KEY) : null
+    const saved = raw ? JSON.parse(raw) : null
+    const zones = Array.isArray(saved?.zones)
+      ? (saved.zones as Partial<CostumeZone>[]).filter(
+          (z): z is CostumeZone => typeof z?.id === 'string' && typeof z.name === 'string' && typeof z.leds === 'number' && z.leds >= 1 && PLACEMENT_IDS.has(z.placement as string),
+        )
+      : []
+    const brightness = typeof saved?.brightness === 'number' ? Math.max(5, Math.min(100, saved.brightness)) : 25
+    return { zones: zones.length ? zones : DEFAULT_ZONES, brightness }
+  } catch {
+    return { zones: DEFAULT_ZONES, brightness: 25 }
+  }
+}
+
 export const useCostumeStore = create<CostumeState>((set, get) => ({
-  // Matches the bench firmware: 3 zones × 20 LEDs (1 m of 60 LED/m)
-  zones: [
-    { id: 'a', name: 'Zone A — arms', leds: 20, placement: 'arms' },
-    { id: 'b', name: 'Zone B — chest', leds: 20, placement: 'chest' },
-    { id: 'c', name: 'Zone C — legs', leds: 20, placement: 'legs' },
-  ],
-  brightness: 25,
+  ...loadCostume(),
   baseConnected: false,
   baseKind: null,
   musicSync: true,
@@ -255,3 +275,9 @@ export const useCostumeStore = create<CostumeState>((set, get) => ({
     log('INFO', 'Show ended')
   },
 }))
+
+// Keep Costume setup across reloads (sections and firmware downloads refer to these zone ids).
+useCostumeStore.subscribe((s, prev) => {
+  if (s.zones === prev.zones && s.brightness === prev.brightness) return
+  try { window.localStorage.setItem(COSTUME_KEY, JSON.stringify({ zones: s.zones, brightness: s.brightness })) } catch { /* storage blocked */ }
+})

@@ -3,7 +3,7 @@
  * exactly what this returns, and the costume firmware will run the same rules.
  */
 import type { CostumeLayout } from '@/lib/show/body'
-import { ALL_DANCERS } from '@/lib/show/model'
+import { ALL_DANCERS, darkZonesAt } from '@/lib/show/model'
 import type { Clip, ShowProject } from '@/lib/show/model'
 
 type RGB = [number, number, number]
@@ -126,6 +126,9 @@ export function renderDancer(project: ShowProject, layout: CostumeLayout, dancer
       }
     }
   }
+  // Sections keep some zones dark, whatever the clips say.
+  const dark = darkZonesAt(project, t)
+  if (dark) for (const zone of layout.zones) if (dark.has(zone.id)) frame.fill(0, zone.start * 3, (zone.start + zone.count) * 3)
 }
 
 /** Rough current for one frame: ~20 mA per colour channel at full, scaled by the brightness cap. */

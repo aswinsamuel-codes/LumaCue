@@ -145,6 +145,14 @@ export default function Timeline({ timeMs, pxPerSec, snap, analysis, following, 
             onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); seekFromEvent(e) }}
             onPointerMove={(e) => { if (e.buttons & 1) seekFromEvent(e) }}
           >
+            {/* Sections as bands behind the time labels */}
+            {project.sections?.map((s, i) => (
+              <div key={s.id} className="absolute bottom-0 h-2.5 border-l border-amber-300/60 overflow-hidden pointer-events-none"
+                style={{ left: s.startMs * pps, width: Math.max(2, (s.endMs - s.startMs) * pps), background: i % 2 ? 'rgba(251,191,36,0.18)' : 'rgba(251,191,36,0.30)' }}
+                title={s.name}>
+                <span className="absolute left-1 -top-px text-[8px] leading-[10px] font-mono text-amber-100/90 whitespace-nowrap">§ {s.name}</span>
+              </div>
+            ))}
             {Array.from({ length: Math.floor(project.lengthMs / 1000 / step) + 1 }, (_, i) => (
               <div key={i} className="absolute top-0 bottom-0 border-l border-white/15" style={{ left: i * step * pxPerSec }}>
                 <span className="absolute left-1 top-1 text-[9px] font-mono text-white/35 whitespace-nowrap">{formatShowTime(i * step * 1000)}</span>

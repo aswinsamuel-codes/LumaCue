@@ -25,6 +25,7 @@ export interface BenchCue {
   param: number        // FLASH: period ms. CHASE: ms per lap. ≤ 65535
   source: 'all' | 'own'
   effect: EffectId     // the editor effect this cue came from
+  section?: string     // set on the OFF cues that keep a section's zones dark
 }
 
 export interface BenchCompileResult {
@@ -157,6 +158,17 @@ function compileWithStep(project: ShowProject, zoneIds: string[], dancer: number
         notes.add(`Rainbow is played as one colour per zone, changing every ${STEP_MS} ms.`)
         break
       }
+    }
+  }
+
+  // Sections: OFF cues on their dark zones, last in the table so they win over every clip.
+  for (const s of project.sections ?? []) {
+    const end = Math.min(Math.round(s.endMs), Math.round(project.lengthMs))
+    const start = Math.round(s.startMs)
+    const mask = s.darkZones.map((id) => zoneIds.indexOf(id)).filter((i) => i >= 0 && i < 3).reduce((m, i) => m | ZONE_BITS[i], 0)
+    if (!mask || end <= start) continue
+    for (let t = start; t < end; t += MAX_DURATION) {
+      cues.push({ startMs: t, durationMs: Math.min(end - t, MAX_DURATION), zoneMask: mask, fx: 'FX_OFF', r: 0, g: 0, b: 0, param: 0, source: 'all', effect: 'blackout', section: s.name })
     }
   }
 

@@ -6,6 +6,7 @@ import type { SnapMode } from '@/components/timeline/Timeline'
 import Inspector from '@/components/timeline/Inspector'
 import CostumeSetup from '@/components/timeline/CostumeSetup'
 import AutoCueDialog from '@/components/timeline/AutoCueDialog'
+import SectionsDialog from '@/components/timeline/SectionsDialog'
 import { buildLayout } from '@/lib/show/body'
 import { ALL_DANCERS, formatShowTime, parseShowProject } from '@/lib/show/model'
 import { useShowPlayback } from '@/lib/show/playback'
@@ -41,6 +42,7 @@ export default function TimelineView({ active }: { active: boolean }) {
   const [arduino, setArduino] = useState<{ dancer: number; output: LedOutput; error?: string; busy?: boolean } | null>(null)
   const [setupOpen, setSetupOpen] = useState(false)
   const [autoOpen, setAutoOpen] = useState(false)
+  const [sectionsOpen, setSectionsOpen] = useState(false)
   const peaks = pb.audio
   const audioInput = useRef<HTMLInputElement>(null)
   const importInput = useRef<HTMLInputElement>(null)
@@ -206,6 +208,13 @@ export default function TimelineView({ active }: { active: boolean }) {
         >
           ✨ Auto cues
         </button>
+        <button
+          className={project.sections?.length ? btnOn : btnIdle}
+          onClick={() => setSectionsOpen(true)}
+          title="Parts of the show where some zones stay dark, e.g. hand bands only, then the full costume"
+        >
+          § Sections{project.sections?.length ? ` (${project.sections.length})` : ''}
+        </button>
         <input ref={audioInput} type="file" accept="audio/*" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) void loadAudio(f); e.target.value = '' }} />
 
         <div className="ml-auto flex gap-1.5">
@@ -231,6 +240,8 @@ export default function TimelineView({ active }: { active: boolean }) {
         audioName={project.audioName}
         onSeek={pb.seek}
       />
+
+      {sectionsOpen && <SectionsDialog timeMs={pb.timeMs} onClose={() => setSectionsOpen(false)} onSeek={pb.seek} />}
 
       {autoOpen && peaks && (
         <AutoCueDialog
