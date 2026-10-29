@@ -35,9 +35,11 @@ const uint8_t PIN_RADIO_CSN = 10;  // SPI: D11 MOSI, D12 MISO, D13 SCK (so no LE
 #if OUTPUT_MODE == MODE_STRIP
   #include <FastLED.h>
   const uint8_t  PIN_STRIP_DATA = 6;    // via 220 ohm to DIN
-  const uint8_t  NUM_PIXELS     = 60;   // 1 m of 60 LED/m
-  const uint8_t  LEDS_PER_ZONE  = 20;   // zone A = 0-19, B = 20-39, C = 40-59
-  const uint8_t  BRIGHTNESS     = 64;   // ~25 %
+  // LEDs in zones A, B, C, in strip order. LumaCue's firmware download fills
+  // these in from Costume Setup (first 3 zones). Total at most 250.
+  constexpr uint8_t ZONE_A_LEDS = 20, ZONE_B_LEDS = 20, ZONE_C_LEDS = 20;
+  constexpr uint8_t NUM_PIXELS  = ZONE_A_LEDS + ZONE_B_LEDS + ZONE_C_LEDS;  // 1 m of 60 LED/m
+  const uint8_t  BRIGHTNESS     = 64;   // 0-255 (64 = 25 %); LumaCue sets it from the brightness cap
   const uint16_t MAX_MILLIAMPS  = 500;  // FastLED scales brightness down to stay under this
 #else
   const uint8_t NUM_PIXELS = 3;         // one bi-colour LED per zone
@@ -94,8 +96,9 @@ RF24 radio(PIN_RADIO_CE, PIN_RADIO_CSN);
 // ---- Rendering ----
 uint8_t zoneOf(uint8_t i) {
 #if OUTPUT_MODE == MODE_STRIP
-  uint8_t z = i / LEDS_PER_ZONE;
-  return z > 2 ? 2 : z;
+  if (i < ZONE_A_LEDS) return 0;
+  if (i < ZONE_A_LEDS + ZONE_B_LEDS) return 1;
+  return 2;
 #else
   return i;
 #endif

@@ -4,7 +4,7 @@ import { drawSilhouette } from '@/lib/show/body'
 import type { CostumeLayout } from '@/lib/show/body'
 import { frameMilliamps, renderDancer } from '@/lib/show/render'
 import type { ShowProject } from '@/lib/show/model'
-import { benchPixelCount, benchVisibleColor, compileBenchCues, renderBench } from '@/lib/show/bench'
+import { benchPixelCount, benchVisibleColor, benchZoneLeds, compileBenchCues, renderBench } from '@/lib/show/bench'
 import type { BenchCue, BenchOutput } from '@/lib/show/bench'
 
 const CURRENT_LIMIT_MA = 1000
@@ -31,14 +31,19 @@ function grid(n: number, view: 'all' | 'single') {
 
 /**
  * Fills `f` the way the bench costume would light this layout: its first 3
- * zones are the firmware's zones A–C (20 strip pixels each, or one 5 mm LED).
+ * zones are the firmware's zones A–C (a strip with the same zone sizes, or
+ * one 5 mm LED per zone).
  */
-function renderBenchFrame(cues: BenchCue[], output: BenchOutput, layout: CostumeLayout, t: number, px: Uint8Array, f: Float32Array) {
-  renderBench(cues, t, output, px)
+function renderBenchFrame(cues: BenchCue[], output: BenchOutput, layout: CostumeLayout, zoneLeds: number[], t: number, px: Uint8Array, f: Float32Array) {
+  renderBench(cues, t, output, px, zoneLeds)
   f.fill(0)
+  const sizes = benchZoneLeds(zoneLeds)
   layout.zones.slice(0, 3).forEach((z, zi) => {
+    const first = sizes.slice(0, zi).reduce((a, b) => a + b, 0)
     for (let i = 0; i < z.count; i++) {
-      const p = output === 'strip' ? zi * 20 + Math.floor((i * 20) / z.count) : zi
+      // Sizes match unless the strip had to be scaled down to fit 250 LEDs.
+      const p = output === 'strip' ? first + Math.min(sizes[zi] - 1, Math.floor((i * sizes[zi]) / z.count)) : zi
+      if (output === 'strip' && sizes[zi] === 0) continue
       const [r, g, b] = benchVisibleColor(px[p * 3], px[p * 3 + 1], px[p * 3 + 2], output)
       const o = (z.start + i) * 3
       f[o] = r; f[o + 1] = g; f[o + 2] = b
@@ -51,12 +56,13 @@ export default function StageCanvas({ project, layout, timeMs, view, focusDancer
   const frame = useRef(new Float32Array(0))
   const [size, setSize] = useState({ w: 0, h: 0 })
   const zoneIds = useMemo(() => layout.zones.map((z) => z.id), [layout])
+  const zoneLeds = useMemo(() => layout.zones.map((z) => z.count), [layout])
   // Compile once per show edit, not per frame.
   const benchCues = useMemo(
     () => (bench ? Array.from({ length: project.dancers }, (_, d) => compileBenchCues(project, zoneIds, d).cues) : null),
     [bench, project, zoneIds],
   )
-  const benchPx = useMemo(() => new Uint8Array(benchPixelCount(bench ?? 'strip') * 3), [bench])
+  const benchPx = useMemo(() => new Uint8Array(benchPixelCount(bench ?? 'strip', zoneLeds) * 3), [bench, zoneLeds])
 
   useEffect(() => {
     const el = canvas.current?.parentElement
@@ -94,7 +100,7 @@ export default function StageCanvas({ project, layout, timeMs, view, focusDancer
 
     dancers.forEach((d, k) => {
       if (dark) f.fill(0)
-      else if (bench && benchCues) renderBenchFrame(benchCues[d], bench, layout, timeMs, benchPx, f)
+      else if (bench && benchCues) renderBenchFrame(benchCues[d], bench, layout, zoneLeds, timeMs, benchPx, f)
       else renderDancer(project, layout, d, timeMs, f)
       const mA = frameMilliamps(f, brightness)
       peak = Math.max(peak, mA)
@@ -153,9 +159,9 @@ export default function StageCanvas({ project, layout, timeMs, view, focusDancer
     ctx.fillText(`${layout.total} LEDs/costume · peak draw now ≈ ${Math.round(peak)} mA at ${brightness}% cap`, 10, 16)
     if (bench) {
       ctx.fillStyle = '#fde68a'
-      ctx.fillText(`COSTUME VIEW · what the bench firmware lights (${bench === '5mm' ? '5 mm red/green LEDs, 1 per zone' : 'WS2812B, 20 per zone'}; zones after the 3rd stay dark)`, 10, 30)
+      ctx.fillText(`COSTUME VIEW · what the bench firmware lights (${bench === '5mm' ? '5 mm red/green LEDs, 1 per zone' : `WS2812B, zones ${benchZoneLeds(zoneLeds).join('/')} LEDs`}; zones after the 3rd stay dark)`, 10, 30)
     }
-  }, [project, layout, timeMs, view, focusDancer, brightness, xray, dark, size, bench, benchCues, benchPx])
+  }, [project, layout, timeMs, view, focusDancer, brightness, xray, dark, size, bench, benchCues, benchPx, zoneLeds])
 
   const handleClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (view === 'single' || !onPickDancer) return

@@ -4,6 +4,7 @@
  */
 import { exportArduinoShow } from '@/lib/show/arduino-export'
 import type { ShowProject } from '@/lib/show/model'
+import { benchZoneLeds } from '@/lib/show/bench'
 
 export interface FirmwareTemplates {
   baseIno: string
@@ -17,6 +18,14 @@ export type LedOutput = '5mm' | 'strip'
 const SHOW_TABLE = /const Cue SHOW\[\] PROGMEM = \{[\s\S]*?\n\};/
 const SHOW_LENGTH = /const uint32_t SHOW_LENGTH_MS(\s*)=\s*\d+;/
 const OUTPUT_MODE = /#define OUTPUT_MODE MODE_\w+/
+const ZONE_SIZES = /constexpr uint8_t ZONE_A_LEDS = \d+, ZONE_B_LEDS = \d+, ZONE_C_LEDS = \d+;/
+const BRIGHTNESS = /const uint8_t  BRIGHTNESS     = \d+;/
+
+/** Strip settings taken from Costume Setup. */
+export interface StripSettings {
+  zoneLeds: number[]     // LEDs per zone, in strip order (first 3 are used)
+  brightnessPct: number  // brightness cap, 5–100 %
+}
 
 // Always a function replacer: text like a show name may contain '$', which a
 // string replacement would treat as a special pattern.
@@ -32,6 +41,7 @@ export function buildFirmware(
   dancer: number,
   output: LedOutput,
   generatedAt = new Date(),
+  strip: StripSettings = { zoneLeds: [20, 20, 20], brightnessPct: 25 },
 ): { path: string; text: string }[] {
   const lengthMs = Math.round(project.lengthMs)
   const pad = (n: number) => String(n).padStart(2, '0')
@@ -43,12 +53,16 @@ export function buildFirmware(
   const table = exportArduinoShow(project, zoneIds, dancer, { pasteInstructions: false })
   costume = replaceOnce(costume, SHOW_TABLE, () => table, 'the SHOW[] cue table')
   costume = replaceOnce(costume, OUTPUT_MODE, () => `#define OUTPUT_MODE ${output === 'strip' ? 'MODE_STRIP' : 'MODE_5MM'}`, 'OUTPUT_MODE')
+  const [a, b, c] = benchZoneLeds(strip.zoneLeds)
+  costume = replaceOnce(costume, ZONE_SIZES, () => `constexpr uint8_t ZONE_A_LEDS = ${a}, ZONE_B_LEDS = ${b}, ZONE_C_LEDS = ${c};`, 'the ZONE_x_LEDS sizes')
+  const level = Math.max(1, Math.min(255, Math.round((Math.max(0, Math.min(100, strip.brightnessPct)) * 255) / 100)))
+  costume = replaceOnce(costume, BRIGHTNESS, () => `const uint8_t  BRIGHTNESS     = ${level};`, 'BRIGHTNESS')
 
   const base = len(t.baseIno)
 
   const readme = [
     `LumaCue firmware for "${project.name}" (Dancer ${dancer + 1})`,
-    `Show length: ${(lengthMs / 1000).toFixed(1)} s · LED output: ${output === 'strip' ? 'WS2812B strip (needs the FastLED library)' : '5 mm bi-colour LEDs'}`,
+    `Show length: ${(lengthMs / 1000).toFixed(1)} s · LED output: ${output === 'strip' ? `WS2812B strip (needs the FastLED library): zones A/B/C = ${a}/${b}/${c} LEDs, brightness ${level}/255` : '5 mm bi-colour LEDs'}`,
     '',
     '1. Unzip, then open base_station/base_station.ino in the Arduino IDE and upload it to the base Nano.',
     '2. Open test_costume/test_costume.ino and upload it to the costume Nano.',

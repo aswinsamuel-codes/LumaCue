@@ -163,22 +163,44 @@ function compileWithStep(project: ShowProject, zoneIds: string[], dancer: number
   return { cues, notes: [...notes] }
 }
 
-const BENCH_PIXELS = { '5mm': 3, strip: 60 } as const
-const LEDS_PER_ZONE = 20
+export const DEFAULT_ZONE_LEDS = [20, 20, 20]
+export const MAX_STRIP_PIXELS = 250
 
-export function benchPixelCount(output: BenchOutput) {
-  return BENCH_PIXELS[output]
+/**
+ * LEDs in the strip build's zones A–C from Costume Setup's zone sizes: the
+ * first 3 zones, missing ones 0, scaled down if the total is over 250
+ * (the firmware counts pixels in a byte).
+ */
+export function benchZoneLeds(zoneLeds: number[]): [number, number, number] {
+  const z = [0, 1, 2].map((i) => Math.max(0, Math.round(zoneLeds[i] ?? 0)))
+  if (z[0] + z[1] + z[2] === 0) return [20, 20, 20]
+  const total = z[0] + z[1] + z[2]
+  if (total <= MAX_STRIP_PIXELS) return z as [number, number, number]
+  const k = MAX_STRIP_PIXELS / total
+  return z.map((v) => Math.floor(v * k)) as [number, number, number]
 }
 
-export function benchZoneOf(i: number, output: BenchOutput) {
-  return output === 'strip' ? Math.min(2, Math.floor(i / LEDS_PER_ZONE)) : i
+export function benchPixelCount(output: BenchOutput, zoneLeds = DEFAULT_ZONE_LEDS) {
+  if (output === '5mm') return 3
+  const [a, b, c] = benchZoneLeds(zoneLeds)
+  return a + b + c
 }
 
-/** Port of render()/applyCue() in test_costume.ino. Writes RGB per pixel into `out` (pixels × 3). */
-export function renderBench(cues: BenchCue[], t: number, output: BenchOutput, out: Uint8Array) {
-  const n = BENCH_PIXELS[output]
+export function benchZoneOf(i: number, output: BenchOutput, zoneLeds = DEFAULT_ZONE_LEDS) {
+  if (output === '5mm') return i
+  const [a, b] = benchZoneLeds(zoneLeds)
+  return i < a ? 0 : i < a + b ? 1 : 2
+}
+
+/**
+ * Port of render()/applyCue() in test_costume.ino. Writes RGB per pixel into
+ * `out` (pixels × 3). zoneLeds = the strip's zone sizes, as in the firmware.
+ */
+export function renderBench(cues: BenchCue[], t: number, output: BenchOutput, out: Uint8Array, zoneLeds = DEFAULT_ZONE_LEDS) {
+  const n = benchPixelCount(output, zoneLeds)
+  const zoneOf = Array.from({ length: n }, (_, i) => benchZoneOf(i, output, zoneLeds))
   out.fill(0)
-  const inMask = (i: number, mask: number) => (mask & (1 << benchZoneOf(i, output))) !== 0
+  const inMask = (i: number, mask: number) => (mask & (1 << zoneOf[i])) !== 0
   const set = (i: number, r: number, g: number, b: number) => { out[i * 3] = r; out[i * 3 + 1] = g; out[i * 3 + 2] = b }
 
   for (const c of cues) {
@@ -250,7 +272,7 @@ export interface FidelityReport {
 /**
  * Compares the editor's preview with what the bench costume will show, zone by
  * zone every `stepMs`. A zone "agrees" when its average colour is within a
- * visible distance of the costume's (the strip's 20 LEDs averaged).
+ * visible distance of the costume's (the strip zone's LEDs averaged).
  * On 5 mm LEDs both sides are first reduced to what a red/green LED can show,
  * so matchPct measures the export; colours the LED can't make at all are
  * counted separately in colourLossPct.
@@ -262,21 +284,25 @@ export function benchFidelity(
   renderZones: (t: number) => [number, number, number][],
   stepMs = 50,
   output: BenchOutput = 'strip',
+  zoneLeds = DEFAULT_ZONE_LEDS,
 ): FidelityReport {
   const { cues } = compileBenchCues(project, zoneIds, dancer)
-  const px = new Uint8Array(benchPixelCount(output) * 3)
+  const sizes = benchZoneLeds(zoneLeds)
+  const px = new Uint8Array(benchPixelCount(output, zoneLeds) * 3)
   const zones = Math.min(3, Math.max(1, zoneIds.length))
   let good = 0, total = 0, lit = 0, lost = 0
   const perClip = new Map<Clip, { bad: number; n: number }>()
 
   for (let t = stepMs / 2; t < project.lengthMs; t += stepMs) {
-    renderBench(cues, t, output, px)
+    renderBench(cues, t, output, px, zoneLeds)
     const editor = renderZones(t)
     let badHere = 0
     for (let z = 0; z < zones; z++) {
       let r = 0, g = 0, b = 0
       if (output === 'strip') {
-        for (let i = z * LEDS_PER_ZONE; i < (z + 1) * LEDS_PER_ZONE; i++) { r += px[i * 3] / LEDS_PER_ZONE; g += px[i * 3 + 1] / LEDS_PER_ZONE; b += px[i * 3 + 2] / LEDS_PER_ZONE }
+        const first = sizes.slice(0, z).reduce((x, y) => x + y, 0), count = sizes[z]
+        if (!count) continue
+        for (let i = first; i < first + count; i++) { r += px[i * 3] / count; g += px[i * 3 + 1] / count; b += px[i * 3 + 2] / count }
       } else {
         [r, g, b] = benchVisibleColor(px[z * 3], px[z * 3 + 1], px[z * 3 + 2], '5mm')
       }

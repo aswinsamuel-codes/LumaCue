@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { benchFidelity, benchVisibleColor, compileBenchCues, CUE_BUDGET, parseCueTable, renderBench } from '@/lib/show/bench'
+import { benchFidelity, benchVisibleColor, benchZoneLeds, compileBenchCues, CUE_BUDGET, parseCueTable, renderBench } from '@/lib/show/bench'
 import type { BenchCue } from '@/lib/show/bench'
 import { exportArduinoShow } from '@/lib/show/arduino-export'
 import { clip, editorZones, project, readFirmware, tableOf, ZONE_IDS } from './helpers/fixtures'
@@ -12,8 +12,10 @@ describe('firmware contract (TS port must match test_costume.ino)', () => {
   it('has the same effect enum, zone masks and strip layout', () => {
     expect(ino).toMatch(/enum Effect : uint8_t \{ FX_OFF, FX_SOLID, FX_FLASH, FX_CHASE \};/)
     expect(ino).toMatch(/const uint8_t ZA = 1, ZB = 2, ZC = 4, ZALL = 7;/)
-    expect(ino).toMatch(/NUM_PIXELS\s+= 60;/)
-    expect(ino).toMatch(/LEDS_PER_ZONE\s+= 20;/)
+    expect(ino).toMatch(/constexpr uint8_t ZONE_A_LEDS = 20, ZONE_B_LEDS = 20, ZONE_C_LEDS = 20;/)
+    expect(ino).toMatch(/constexpr uint8_t NUM_PIXELS {2}= ZONE_A_LEDS \+ ZONE_B_LEDS \+ ZONE_C_LEDS;/)
+    expect(ino).toContain('if (i < ZONE_A_LEDS) return 0;')
+    expect(ino).toContain('if (i < ZONE_A_LEDS + ZONE_B_LEDS) return 1;')
     expect(ino).toMatch(/const uint8_t NUM_PIXELS = 3;/)
   })
   it('keeps the cue counter wide enough for long shows', () => {
@@ -63,6 +65,30 @@ describe('renderBench', () => {
     expect(lit(0)).toEqual([0, 55, 56, 57, 58, 59])
     expect(lit(300)).toEqual([25, 26, 27, 28, 29, 30])
     expect(lit(600)).toEqual(lit(0))
+  })
+})
+
+describe('strip zone sizes from Costume Setup', () => {
+  it('uses the first three zones and keeps the strip under 250 LEDs', () => {
+    expect(benchZoneLeds([30, 15, 30, 10])).toEqual([30, 15, 30])
+    expect(benchZoneLeds([40])).toEqual([40, 0, 0])
+    expect(benchZoneLeds([])).toEqual([20, 20, 20])
+    const big = benchZoneLeds([200, 200, 100])
+    expect(big[0] + big[1] + big[2]).toBeLessThanOrEqual(250)
+  })
+  it('lights only the right zone on an uneven strip', () => {
+    const cues = [cue({ zoneMask: 2 })] // zone B only
+    const px = new Uint8Array(75 * 3)
+    renderBench(cues, 10, 'strip', px, [30, 15, 30])
+    const lit = [...Array(75).keys()].filter((i) => px[i * 3])
+    expect(lit[0]).toBe(30)
+    expect(lit.at(-1)).toBe(44)
+    expect(lit).toHaveLength(15)
+  })
+  it('scores fidelity per real zone size', () => {
+    const p = project([clip({ durationMs: 10000, zones: ['b'] })])
+    const r = benchFidelity(p, ZONE_IDS, 0, editorZones(p, 0), 100, 'strip', [30, 15, 30])
+    expect(r.matchPct).toBe(100)
   })
 })
 

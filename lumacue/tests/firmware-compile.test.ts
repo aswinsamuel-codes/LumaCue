@@ -36,7 +36,8 @@ describe.skipIf(!cli || !hasRf24)('firmware compiles for the Arduino Nano', () =
   console.log(`E2E show: ${show.clips.length} clips -> ${compileBenchCues(show, ZONE_IDS, 2).cues.length} cues for dancer 3`)
   const compile = (output: '5mm' | 'strip') => {
     const dir = mkdtempSync(path.join(os.tmpdir(), 'lumacue-fw-'))
-    for (const f of buildFirmware(templates(), show, ZONE_IDS, 2, output)) {
+    // Uneven zones and a non-default brightness, as Costume Setup would give.
+    for (const f of buildFirmware(templates(), show, ZONE_IDS, 2, output, new Date(), { zoneLeds: [30, 15, 30], brightnessPct: 40 })) {
       mkdirSync(path.dirname(path.join(dir, f.path)), { recursive: true })
       writeFileSync(path.join(dir, f.path), f.text)
     }

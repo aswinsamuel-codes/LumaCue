@@ -114,9 +114,9 @@ export default function TimelineView({ active }: { active: boolean }) {
         for (let i = z.start; i < z.start + z.count; i++) { r += frame[i * 3]; g += frame[i * 3 + 1]; b += frame[i * 3 + 2] }
         return [r / z.count, g / z.count, b / z.count] as [number, number, number]
       })
-    }, 100, arduino.output)
+    }, 100, arduino.output, zones.map((z) => z.leds))
     return { cues: cues.length, notes, fidelity }
-  }, [arduino, project, zoneIds, layout])
+  }, [arduino, project, zoneIds, layout, zones])
 
   // Ready-to-upload sketches: the repo templates with this show, its length and the LED type filled in.
   const downloadFirmware = async () => {
@@ -126,7 +126,7 @@ export default function TimelineView({ active }: { active: boolean }) {
       const res = await fetch('/api/firmware')
       const body = await res.json()
       if (!res.ok) throw new Error(body.error ?? `HTTP ${res.status}`)
-      const files = buildFirmware(body as FirmwareTemplates, project, zoneIds, arduino.dancer, arduino.output)
+      const files = buildFirmware(body as FirmwareTemplates, project, zoneIds, arduino.dancer, arduino.output, new Date(), { zoneLeds: zones.map((z) => z.leds), brightnessPct: brightness })
       const folder = `lumacue_${project.name.replace(/[^\w-]+/g, '_') || 'show'}_dancer${arduino.dancer + 1}`
       const a = document.createElement('a')
       a.href = URL.createObjectURL(makeZip(files.map((f) => ({ path: `${folder}/${f.path}`, text: f.text }))))
