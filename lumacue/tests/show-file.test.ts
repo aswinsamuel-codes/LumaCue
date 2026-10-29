@@ -39,15 +39,17 @@ describe('parseShowProject', () => {
         { startMs: 0, durationMs: 1000, effect: 'solid', color: '#fff', zones: null, track: -1, speed: 500 }, // bad colour, zones, speed → repaired
         null,                                                                                 // dropped
         { startMs: '0', durationMs: 'x', effect: 'laser', color: 5, zones: [], track: -1 },   // dropped
-        { startMs: 100, durationMs: 100, effect: 'chase', color: '#FF0000', track: 99 },      // no such dancer → dropped
+        { startMs: 100, durationMs: 100, effect: 'chase', color: '#FF0000', track: 99 },      // beyond any dancer limit → dropped
+        { startMs: 100, durationMs: 100, effect: 'chase', color: '#FF0000', track: 7 },       // hidden dancer track → kept
         { id: 'same', startMs: 0, durationMs: 100, effect: 'solid', color: '#FF0000', track: 0 },
         { id: 'same', startMs: 100, durationMs: 100, effect: 'solid', color: '#FF0000', track: 0 }, // duplicate id → new id
       ],
     })
     expect(r.ok).toBe(true)
     if (!r.ok) return
-    expect(r.project.clips).toHaveLength(4)
-    expect(new Set(r.project.clips.map((c) => c.id)).size).toBe(4)
+    expect(r.project.clips).toHaveLength(5)
+    expect(new Set(r.project.clips.map((c) => c.id)).size).toBe(5)
+    expect(r.project.clips.some((c) => c.track === 7)).toBe(true)
     expect(r.project.clips[1]).toMatchObject({ color: '#FFFFFF', zones: [], speed: 100 })
     expect(r.warnings.join(' ')).toMatch(/3 clips couldn't be read/)
     expect(r.warnings.join(' ')).toMatch(/3 clips had missing or invalid settings/)

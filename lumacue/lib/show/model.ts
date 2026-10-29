@@ -190,7 +190,9 @@ export function parseShowProject(x: unknown): ParseResult {
     const startMs = num(r.startMs), durationMs = num(r.durationMs)
     const effect = typeof r.effect === 'string' && EFFECT_IDS.has(r.effect) ? (r.effect as EffectId) : null
     const track = Math.round(num(r.track ?? ALL_DANCERS))
-    if (!effect || !(startMs >= 0) || !(durationMs > 0) || !(track >= ALL_DANCERS) || track >= dancers || startMs >= lengthMs) { dropped++; continue }
+    // Clips on a dancer beyond the current count are kept: lowering the count
+    // hides them, and raising it again brings them back, as in the editor.
+    if (!effect || !(startMs >= 0) || !(durationMs > 0) || !(track >= ALL_DANCERS) || track >= MAX_DANCERS || startMs >= lengthMs) { dropped++; continue }
     let fixed = false
     const validHex = (v: unknown): v is string => typeof v === 'string' && HEX.test(v)
     if (!validHex(r.color) || (r.color2 !== undefined && !validHex(r.color2))) fixed = true
