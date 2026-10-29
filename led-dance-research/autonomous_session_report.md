@@ -2,14 +2,15 @@
 
 **Date:** 30 Oct 2026, from 02:40 IST · **Branch:** `lumacue/autonomous-session` (local only, **not pushed**) · **Rollback tag:** `pre-autonomous-session` (= `905b7d1`)
 **Brief from owner:** ~3 h of autonomous build → test → refine on the software side; keep a report; commit to local git; don't push until told.
-**Status:** in progress. This file is updated as work lands.
+**Status:** finished 30 Oct 2026 ~05:00 IST. **49 commits**, 76 files changed (+7.3k / −0.7k lines). Nothing pushed.
 
 ## 0. How the work was checked
 
 Every change went through the same loop: **build → `npm run check` (types + lint + tests) → browser smoke tests → commit**.
-- **Tests:** 0 at the start, **112 now** (+2 that need extra toolchains), all passing.
+- **Tests:** 0 at the start, **120 now** (+2 that need extra toolchains), all passing. `npm run check` = types + lint + tests.
+- **Code review:** 5 automated review passes over the session's own changes; **49 findings, all fixed** (§3).
 - **Firmware:** both sketches were compiled with the Arduino IDE's own `arduino-cli` after every firmware change, plus an end-to-end test that exports a 3-min show and compiles it.
-- **UI:** checked in real Edge (headless Playwright) with 12 scripted walkthroughs and screenshots, including at 1366 × 768. They run before every UI commit and fail on any page or console error.
+- **UI:** checked in real Edge (headless Playwright) with 13 scripted walkthroughs and screenshots, including at 1366 × 768. They run before every UI commit and fail on any page or console error. (The walkthrough scripts were kept in the session scratch folder, not the repo.)
 - **Full pipeline with real audio:** a WAV file loaded through the UI was decoded by the browser (detected 120.0 BPM exactly), auto-cued on the Bench palette, downloaded as an all-dancers zip, and dancer 2's sketch compiled for the Nano (22 % flash).
 - **Not tested on hardware:** nothing has been run on a real Nano/radio. Simulations are labelled as such.
 
@@ -64,7 +65,8 @@ Every change went through the same loop: **build → `npm run check` (types + li
 - **Spread across dancers** (the hand-sweep look): turns a clip into a staggered copy per dancer, D1 → last, last → D1, centre out or edges in. One undo step.
 - The **→ Costume firmware** button shows how many costumes need new firmware.
 - **Cue sheet** export: every cue in show order with its section, who, effect, colour and zones, as a CSV to print for rehearsals.
-- **Battery planning from the real show:** the export preflight shows each dancer's average/peak current (and when the peak happens), mAh per run and power-bank runtime. The Show Mode checklist judges power by the busiest costume's real peak instead of "everything full white".
+- **Battery planning from the real show:** the export preflight shows each dancer's average/peak current (and when the peak happens), mAh per run and power-bank runtime. The Show Mode checklist uses the **highest peak across all dancers** instead of "everything full white". Sampling is jittered and also checks where each effect is brightest, so strobes aren't missed. 5 mm costumes are treated as ~120 mA.
+- **🎥 Rehearsal video:** load a filmed rehearsal over the twin, muted, playing in step with the show, with frame and 100 ms nudges to line it up. Checked with a generated test video: 2.55 s video at 2.5 s show time.
 
 ### ESP32 costume + base (the planned final controller), ahead of the hardware
 - `firmware/esp32/costume` and `firmware/esp32/base`: ESP-NOW broadcast instead of NRF24, WS2812B strip, 1 A current cap, BOOT button = START/BLACKOUT on the base.
@@ -93,6 +95,12 @@ Cue budget at length: auto-cued shows of 3 / 5 / 8 / 12 min produce at most 566 
 
 ## 3. Code review
 Each review pass covered the code added since the previous one.
+- **Passes 3–5** (power planning, cue sheet, rehearsal video; 29 findings, fixed in `7688571`, `2f7de44`, `ea0c839`):
+  - Power checked only the costume with the highest *average*, so another costume's peak over the limit went unflagged.
+  - A fixed sampling grid could miss strobes entirely, and it missed pulse and wipe peaks.
+  - 5 mm builds got false over-current warnings, and stale download records could hide real ones.
+  - Cue-sheet names could act as spreadsheet formulas.
+  - Streaming WebM videos never synced, and the nudge buttons were labelled backwards.
 - **Second pass:** another 10 issues, all fixed in `558bdd3`. Typing a note on an untested row recorded it as *Pass*, and re-clicking a result deleted its notes. Drift readings could pick up stale replies and counted the USB round trip as drift. With a speaker delay the show ended before the costumes did. The music kept playing when the base refused a start.
 - **First pass** over the whole session's diff found **10 issues**, all fixed in `db17407`. The most important:
 - If the base refused a start point, the app showed RUNNING while every costume stayed dark.
@@ -107,10 +115,17 @@ Each review pass covered the code added since the previous one.
 - **Duplicate React keys** in the new Show Mode "Start from" list. Caught by the browser tests and fixed in `c3f42a8`.
 
 ## 5. Still open / ideas for next
+- **Hardware is the critical path now.** Upload the new sketches, run T1–T12 (log them in Show Mode → *Bench tests*), and decide on ESP32 kits.
 - **Compile the ESP32 sketches** once there is disk space for the esp32 core (or on another PC), then bench-test E1–E5.
 - Desktop vs web decision (`software_architecture.md`). Everything built today works as a local web app in Chrome/Edge.
 - Undo doesn't cover the show name, dancer count or length (it covers clips and sections).
 - The costume can't report back to the laptop. The firmware check tracks *downloads*, not what is actually on the boards.
 
-## 6. Commits
+## 6. Housekeeping
+- The dev server I started for testing was stopped at the end.
+- Session scratch folder (`%TEMP%\claude\…\scratchpad`, about 0.15 GB) holds the test scripts, screenshots and a FastLED/RF24 copy used for compile tests. It is safe to delete. Your own Arduino libraries weren't touched.
+- The Arduino build cache (`%LOCALAPPDATA%\arduino\sketches`, ~175 MB) grew from my compiles; the Arduino IDE manages it.
+- C: drive: 5.9 GB free, the same as before the session.
+
+## 7. Commits
 `git log --oneline pre-autonomous-session..lumacue/autonomous-session`
