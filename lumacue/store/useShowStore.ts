@@ -1,6 +1,8 @@
 import { create } from 'zustand'
 import { ALL_DANCERS, makeId, parseShowProject, starterProject } from '@/lib/show/model'
 import type { Clip, EffectId, ShowProject, ShowSection } from '@/lib/show/model'
+import { spreadAcrossDancers } from '@/lib/show/spread'
+import type { SpreadOrder } from '@/lib/show/spread'
 
 /** What undo/redo restores: the clips and the sections. */
 interface Snapshot {
@@ -61,6 +63,8 @@ interface ShowState {
   replaceProject: (project: ShowProject) => void
   /** Adds generated clips as one undo step, optionally replacing everything. */
   applyClips: (clips: Clip[], replace: boolean) => void
+  /** Replace a clip with a staggered copy on every dancer's track (one undo step). */
+  spreadClip: (id: string, stepMs: number, order: SpreadOrder) => void
 }
 
 export const useShowStore = create<ShowState>((set, get) => {
@@ -161,6 +165,15 @@ export const useShowStore = create<ShowState>((set, get) => {
       const project = { ...get().project, ...patch }
       set({ project })
       saveSoon(project)
+    },
+
+    spreadClip: (id, stepMs, order) => {
+      const { project } = get()
+      const c = project.clips.find((x) => x.id === id)
+      if (!c) return
+      get().checkpoint()
+      const copies = spreadAcrossDancers(c, project.dancers, stepMs, order, project.lengthMs)
+      commit([...project.clips.filter((x) => x.id !== id), ...copies], { selectedClipId: copies[0]?.id ?? null, selectedTrack: copies[0]?.track ?? ALL_DANCERS })
     },
 
     applyClips: (clips, replace) => {

@@ -1,6 +1,9 @@
 'use client'
 import { ALL_DANCERS, EFFECTS, EFFECT_BY_ID, trackLabel } from '@/lib/show/model'
 import { useShowStore } from '@/store/useShowStore'
+import { useState } from 'react'
+import { SPREAD_ORDERS } from '@/lib/show/spread'
+import type { SpreadOrder } from '@/lib/show/spread'
 import { useCostumeStore } from '@/store/useCostumeStore'
 
 const SWATCHES = ['#FFFFFF', '#FF0033', '#FF6B00', '#FFD000', '#00FF66', '#00E5FF', '#2563EB', '#7C3AED', '#FF00CC', '#000000']
@@ -9,7 +12,9 @@ const label = 'text-white/30 text-[10px] font-mono tracking-widest mb-1'
 const input = 'w-full bg-black/40 border border-white/10 rounded-md px-2 py-1 text-white text-xs font-mono focus:outline-none focus:border-purple-500/50'
 
 export default function Inspector({ timeMs, audioLoaded }: { timeMs: number; audioLoaded: boolean }) {
-  const { project, selectedClipId, selectedTrack, addClip, updateClip, deleteClip, duplicateClip, checkpoint, setProject } = useShowStore()
+  const { project, selectedClipId, selectedTrack, addClip, updateClip, deleteClip, duplicateClip, checkpoint, setProject, spreadClip } = useShowStore()
+  const [spreadStep, setSpreadStep] = useState(150)
+  const [spreadOrder, setSpreadOrder] = useState<SpreadOrder>('forward')
   const zones = useCostumeStore((s) => s.zones)
   const clip = project.clips.find((c) => c.id === selectedClipId) ?? null
   const info = clip ? EFFECT_BY_ID[clip.effect] : null
@@ -128,6 +133,28 @@ export default function Inspector({ timeMs, audioLoaded }: { timeMs: number; aud
             <button onClick={() => duplicateClip(clip.id)} className="py-1.5 rounded-md bg-white/5 border border-white/10 text-white/60 text-xs hover:bg-white/10">Duplicate</button>
             <button onClick={() => deleteClip(clip.id)} className="py-1.5 rounded-md bg-red-500/15 border border-red-500/30 text-red-300 text-xs hover:bg-red-500/25">Delete</button>
           </div>
+
+          {/* The hand-sweep look: the same clip travelling down the line of dancers */}
+          {project.dancers > 1 && (
+            <div className="rounded-md border border-white/10 p-2">
+              <p className={label}>SPREAD ACROSS DANCERS</p>
+              <div className="grid grid-cols-2 gap-2 mb-2">
+                <select value={spreadOrder} onChange={(e) => setSpreadOrder(e.target.value as SpreadOrder)} className={input} aria-label="Spread order">
+                  {SPREAD_ORDERS.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+                </select>
+                <select value={spreadStep} onChange={(e) => setSpreadStep(Number(e.target.value))} className={input} aria-label="Delay between dancers">
+                  {[50, 100, 150, 250, 400, 600].map((ms) => <option key={ms} value={ms}>{ms} ms apart</option>)}
+                </select>
+              </div>
+              <button
+                onClick={() => spreadClip(clip.id, spreadStep, spreadOrder)}
+                className="w-full py-1.5 rounded-md bg-purple-500/20 border border-purple-500/40 text-purple-200 text-xs hover:bg-purple-500/30"
+                title="Replace this clip with a copy on each dancer's track, each a little later"
+              >
+                ⇶ Spread over {project.dancers} dancers
+              </button>
+            </div>
+          )}
         </div>
       ) : (
         <div className="flex flex-col gap-3">
