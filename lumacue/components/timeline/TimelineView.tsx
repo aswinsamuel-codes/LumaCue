@@ -9,6 +9,7 @@ import AutoCueDialog from '@/components/timeline/AutoCueDialog'
 import SectionsDialog from '@/components/timeline/SectionsDialog'
 import { buildLayout } from '@/lib/show/body'
 import { ALL_DANCERS, formatShowTime, parseShowProject, showFileJson } from '@/lib/show/model'
+import { cueSheetCsv } from '@/lib/show/cue-sheet'
 import { useShowPlayback } from '@/lib/show/playback'
 import { exportArduinoShow } from '@/lib/show/arduino-export'
 import { buildFirmware, buildFirmwareForAll } from '@/lib/show/firmware-bundle'
@@ -85,6 +86,16 @@ export default function TimelineView({ active }: { active: boolean }) {
     const a = document.createElement('a')
     a.href = URL.createObjectURL(blob)
     a.download = `${project.name.replace(/[^\w-]+/g, '_') || 'show'}.lumacue.json`
+    a.click()
+    URL.revokeObjectURL(a.href)
+  }
+
+  // Printable list of what happens when, for rehearsals (opens in Excel / Sheets).
+  const exportCueSheet = () => {
+    const blob = new Blob(['\uFEFF' + cueSheetCsv(project, zones)], { type: 'text/csv;charset=utf-8' })
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = `${project.name.replace(/[^\w-]+/g, '_') || 'show'}_cue_sheet.csv`
     a.click()
     URL.revokeObjectURL(a.href)
   }
@@ -233,6 +244,7 @@ export default function TimelineView({ active }: { active: boolean }) {
           <button className={btnIdle} onClick={() => importInput.current?.click()}>Open</button>
           <input ref={importInput} type="file" accept=".json,application/json" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) void importJson(f); e.target.value = '' }} />
           <button className={btnIdle} onClick={exportJson}>Save file</button>
+          <button className={btnIdle} onClick={exportCueSheet} title="Every cue in show order with its section, as a spreadsheet to print for rehearsals">Cue sheet</button>
           <button className={`${btn} bg-yellow-500/15 border-yellow-500/30 text-yellow-200 hover:bg-yellow-500/25`} onClick={() => setArduino({ dancer: focusDancer, output: '5mm', board: 'nano' })} title={firmwareToUpdate ? `${firmwareToUpdate} costume(s) don't have firmware for the show as it is now` : 'Every costume has firmware for this show'}>
             → Costume firmware{firmwareToUpdate ? <span className="ml-1.5 rounded bg-yellow-400/25 px-1 text-yellow-100">{firmwareToUpdate} to update</span> : ' ✓'}
           </button>
