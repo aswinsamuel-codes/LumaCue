@@ -25,3 +25,17 @@ describe('bench test log', () => {
     ])
   })
 })
+
+describe('bench test log store', () => {
+  it('typing notes does not record a result, and un-choosing a result keeps the notes', async () => {
+    const { useBenchLogStore } = await import('@/store/useBenchLogStore')
+    const s = useBenchLogStore.getState()
+    s.setResult('T6', { notes: 'err 120 ms, retrying' })
+    expect(useBenchLogStore.getState().results.T6.status).toBeNull()
+    expect(benchResultsMarkdown(useBenchLogStore.getState().results, ['T6'])).toContain('| T6 |  |  |  | err 120 ms, retrying |')
+    s.setResult('T6', { status: 'fail' })
+    expect(useBenchLogStore.getState().results.T6.date).toMatch(/^20/)
+    useBenchLogStore.getState().clearStatus('T6')
+    expect(useBenchLogStore.getState().results.T6).toMatchObject({ status: null, notes: 'err 120 ms, retrying' })
+  })
+})

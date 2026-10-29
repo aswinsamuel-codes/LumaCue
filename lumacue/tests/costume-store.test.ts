@@ -111,7 +111,7 @@ describe('drift measurement with music sync off (bench test T12)', () => {
     s.start()
     await new Promise((r) => setTimeout(r, 120))
     const before = useDashboardStore.getState().logs.length
-    useCostumeStore.getState().measureDrift(100) // pretend the music says 100 ms
+    useCostumeStore.getState().measureDrift(() => 100) // pretend the music says 100 ms
     await flush()
     await flush()
     const d = useCostumeStore.getState().baseDriftMs
@@ -119,5 +119,17 @@ describe('drift measurement with music sync off (bench test T12)', () => {
     expect(Math.abs(d! - 20)).toBeLessThan(80) // simulator ran ~120 ms
     expect(useDashboardStore.getState().logs.slice(before).some((l) => l.message.includes('show=1'))).toBe(false)
     useCostumeStore.getState().setMusicSync(true)
+  })
+
+  it('ignores a STATUS answer that belongs to an earlier run', async () => {
+    const s = useCostumeStore.getState()
+    s.setMusicSync(false)
+    s.start()
+    useCostumeStore.getState().measureDrift(() => 60000)
+    useCostumeStore.getState().blackout() // before the answer arrives
+    await flush()
+    await flush()
+    expect(useCostumeStore.getState().baseDriftMs).toBeNull()
+    s.setMusicSync(true)
   })
 })

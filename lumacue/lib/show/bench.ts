@@ -211,22 +211,24 @@ export function benchZoneOf(i: number, output: BenchOutput, zoneLeds = DEFAULT_Z
   return i < a ? 0 : i < a + b ? 1 : 2
 }
 
-/**
- * Port of render()/applyCue() in test_costume.ino. Writes RGB per pixel into
- * `out` (pixels × 3). zoneLeds = the strip's zone sizes, as in the firmware.
- */
 const zoneMapCache = new Map<string, Uint8Array>()
+const ZONE_MAP_CACHE_MAX = 32
 /** Zone of every pixel for one strip layout, computed once (renderBench runs thousands of times in a preflight). */
 function zoneMap(output: BenchOutput, zoneLeds: number[]) {
   const key = output === '5mm' ? '5mm' : benchZoneLeds(zoneLeds).join(',')
   let m = zoneMapCache.get(key)
   if (!m) {
     m = Uint8Array.from({ length: benchPixelCount(output, zoneLeds) }, (_, i) => benchZoneOf(i, output, zoneLeds))
+    if (zoneMapCache.size >= ZONE_MAP_CACHE_MAX) zoneMapCache.clear() // layouts edited over a long session
     zoneMapCache.set(key, m)
   }
   return m
 }
 
+/**
+ * Port of render()/applyCue() in test_costume.ino. Writes RGB per pixel into
+ * `out` (pixels × 3). zoneLeds = the strip's zone sizes, as in the firmware.
+ */
 export function renderBench(cues: BenchCue[], t: number, output: BenchOutput, out: Uint8Array, zoneLeds = DEFAULT_ZONE_LEDS) {
   const zoneOf = zoneMap(output, zoneLeds)
   const n = zoneOf.length

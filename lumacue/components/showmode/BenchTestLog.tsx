@@ -14,20 +14,24 @@ const btnIdle = `${btn} bg-white/5 border-white/10 text-white/60 hover:bg-white/
  * then copy the filled-in Results table into firmware/bench_sync_test/README.md.
  */
 export default function BenchTestLog({ onClose }: { onClose: () => void }) {
-  const { results, setResult, clearResult } = useBenchLogStore()
+  const { results, setResult, clearStatus } = useBenchLogStore()
   const { baseDriftMs, baseDriftPpm, musicSync } = useCostumeStore()
-  const [copied, setCopied] = useState(false)
+  const [copied, setCopied] = useState<'' | 'ok' | 'failed'>('')
   const [showEsp32, setShowEsp32] = useState(Object.keys(results).some((id) => id.startsWith('E')))
 
   const tests = BENCH_TESTS.filter((t) => showEsp32 || t.id.startsWith('T'))
-  const done = tests.filter((t) => results[t.id]).length
+  const done = tests.filter((t) => results[t.id]?.status).length
   const failed = tests.filter((t) => results[t.id]?.status === 'fail').length
 
   const copy = () => {
-    void navigator.clipboard.writeText(benchResultsMarkdown(results, tests.map((t) => t.id))).then(() => {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
-    })
+    const done = (state: 'ok' | 'failed') => {
+      setCopied(state)
+      setTimeout(() => setCopied(''), 2500)
+    }
+    // The clipboard can be blocked (permissions, non-localhost http): say so rather than fail silently.
+    Promise.resolve()
+      .then(() => navigator.clipboard.writeText(benchResultsMarkdown(results, tests.map((t) => t.id))))
+      .then(() => done('ok'), () => done('failed'))
   }
 
   // T12 can take the live reading from Show Mode.
@@ -41,7 +45,7 @@ export default function BenchTestLog({ onClose }: { onClose: () => void }) {
           <div className="flex gap-2 items-center">
             <span className={`text-[10px] font-mono ${failed ? 'text-red-300' : 'text-white/40'}`}>{done}/{tests.length} done{failed ? ` · ${failed} failed` : ''}</span>
             <label className="flex items-center gap-1 text-[10px] font-mono text-white/40"><input type="checkbox" checked={showEsp32} onChange={(e) => setShowEsp32(e.target.checked)} className="accent-purple-500" />ESP32 tests</label>
-            <button className={btnIdle} onClick={copy}>{copied ? 'Copied ✓' : 'Copy results table'}</button>
+            <button className={btnIdle} onClick={copy}>{copied === 'ok' ? 'Copied ✓' : copied === 'failed' ? "Couldn't copy: clipboard blocked" : 'Copy results table'}</button>
             <button className={btnIdle} onClick={onClose}>Close</button>
           </div>
         </div>
@@ -69,7 +73,7 @@ export default function BenchTestLog({ onClose }: { onClose: () => void }) {
                     {(['pass', 'partial', 'fail'] as BenchResultStatus[]).map((s) => (
                       <button
                         key={s}
-                        onClick={() => (r?.status === s ? clearResult(t.id) : setResult(t.id, { status: s }))}
+                        onClick={() => (r?.status === s ? clearStatus(t.id) : setResult(t.id, { status: s }))}
                         className={`mr-1 px-1.5 py-0.5 rounded border font-mono text-[10px] ${
                           r?.status === s
                             ? s === 'pass' ? 'bg-green-500/25 border-green-500/50 text-green-200' : s === 'fail' ? 'bg-red-500/25 border-red-500/50 text-red-200' : 'bg-yellow-500/20 border-yellow-500/40 text-yellow-200'

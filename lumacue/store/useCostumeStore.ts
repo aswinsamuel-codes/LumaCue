@@ -51,7 +51,7 @@ interface CostumeState {
   /** Base clock error in parts per million, measured with music sync off (bench test T12). */
   baseDriftPpm: number | null
   /** With music sync off: ask the base for its show time to measure its drift against the music. */
-  measureDrift: (musicMs: number) => void
+  measureDrift: (musicNow: () => number) => void
   watchBaseStation: () => void
   disconnectBase: () => Promise<void>
   arm: () => void
@@ -85,8 +85,13 @@ function loadSpeakerDelay() {
   }
 }
 
-/** The music time when measureDrift() asked the base for STATUS. */
-let pendingDrift: { musicMs: number } | null = null
+/**
+ * A STATUS asked for by measureDrift(): the music time when it was sent, and a
+ * way to read it again when the answer comes, so the round trip can be halved
+ * out. Cleared on start, blackout, sync changes and disconnects.
+ */
+let pendingDrift: { sentMusicMs: number; musicNow: () => number; speakerDelayMs: number; at: number } | null = null
+const DRIFT_REPLY_TIMEOUT_MS = 1000
 /** Where the current run started (Start from), for the drift rate. */
 let startedFromMs = 0
 
@@ -126,9 +131,11 @@ function onBaseLine(line: string) {
   if (len) useCostumeStore.setState({ baseShowLengthMs: Number(len[1]) })
   // A STATUS asked for by measureDrift(): compare the base's show time with the music.
   const t = /\brunning=yes t=(\d+)\b/.exec(line)
-  if (t && pendingDrift) {
-    const drift = Math.round(Number(t[1]) - pendingDrift.musicMs)
-    const elapsed = pendingDrift.musicMs - startedFromMs // drift builds up from START, not from 0:00
+  if (t && pendingDrift && performance.now() - pendingDrift.at < DRIFT_REPLY_TIMEOUT_MS) {
+    // The base read its clock somewhere between send and reply: compare with the music at the midpoint.
+    const musicAtBase = (pendingDrift.sentMusicMs + pendingDrift.musicNow()) / 2 - pendingDrift.speakerDelayMs
+    const drift = Math.round(Number(t[1]) - musicAtBase)
+    const elapsed = musicAtBase - startedFromMs // drift builds up from START, not from 0:00
     const ppm = elapsed > 5000 ? Math.round((drift / elapsed) * 1e6) : null
     pendingDrift = null
     useCostumeStore.setState({ baseDriftMs: drift, baseDriftPpm: ppm })
@@ -139,6 +146,7 @@ function onBaseLine(line: string) {
 }
 
 function onBaseClosed(unexpected: boolean) {
+  pendingDrift = null
   useCostumeStore.setState({ baseConnected: false, baseKind: null, baseDriftMs: null, baseDriftPpm: null, baseShowLengthMs: null })
   log(
     unexpected ? 'ERROR' : 'INFO',
@@ -248,14 +256,15 @@ export const useCostumeStore = create<CostumeState>((set, get) => ({
 
   setMusicSync: (on) => {
     // The readout means something different in each mode, so start it afresh.
+    pendingDrift = null
     set({ musicSync: on, baseDriftMs: null, baseDriftPpm: null })
     log('INFO', `Music sync ${on ? 'on' : 'off: the base station keeps its own clock'}`)
   },
 
-  measureDrift: (musicMs) => {
+  measureDrift: (musicNow) => {
     const { running, baseConnected, musicSync, speakerDelayMs } = get()
     if (!running || !baseConnected || musicSync) return
-    pendingDrift = { musicMs: musicMs - speakerDelayMs }
+    pendingDrift = { sentMusicMs: musicNow(), musicNow, speakerDelayMs, at: performance.now() }
     void sendToBase('STATUS')
   },
 
@@ -292,12 +301,14 @@ export const useCostumeStore = create<CostumeState>((set, get) => ({
   start: (fromMs = 0) => {
     const from = Math.max(0, Math.round(fromMs))
     startedFromMs = from
+    pendingDrift = null
     set({ running: true, baseDriftMs: null, baseDriftPpm: null })
     log('SYNC', `START show ${FIRMWARE_SHOW_ID}${from ? ` from ${(from / 1000).toFixed(1)} s` : ''}${get().baseConnected ? '' : ' (preview only, no base station)'}`)
     void sendToBase(from ? `S${from}` : 'START')
   },
 
   blackout: () => {
+    pendingDrift = null
     set({ running: false, armed: false })
     log('ERROR', 'BLACKOUT — all costumes off')
     void sendToBase('BLACKOUT')

@@ -89,7 +89,7 @@ export default function ShowModeView() {
   // Music sync off (bench test T12): measure how far the base's own clock drifts from the music.
   useEffect(() => {
     if (!running || musicSync || !baseConnected) return
-    const id = setInterval(() => measureDrift(musicNow()), 5000)
+    const id = setInterval(() => measureDrift(musicNow), 5000)
     return () => clearInterval(id)
   }, [running, musicSync, baseConnected, measureDrift, musicNow])
 
@@ -111,11 +111,24 @@ export default function ShowModeView() {
   useEffect(() => () => { if (holdTimer.current) clearTimeout(holdTimer.current) }, [])
 
   // The show clock ran to the end: the costumes have finished too.
+  // With a speaker delay the costumes finish that much after the music clock does.
   const wasPlaying = useRef(false)
   useEffect(() => {
-    if (wasPlaying.current && !pb.playing && pb.timeMs >= project.lengthMs - 1) showEnded()
+    let id: ReturnType<typeof setTimeout> | undefined
+    if (wasPlaying.current && !pb.playing && pb.timeMs >= project.lengthMs - 1) id = setTimeout(showEnded, speakerDelayMs)
     wasPlaying.current = pb.playing
-  }, [pb.playing, pb.timeMs, project.lengthMs, showEnded])
+    return () => clearTimeout(id)
+  }, [pb.playing, pb.timeMs, project.lengthMs, showEnded, speakerDelayMs])
+
+  // The show stopped without the operator (base refused the start, old firmware…): stop the music too.
+  const wasRunning = useRef(running)
+  useEffect(() => {
+    if (wasRunning.current && !running && pb.playing && pb.timeMs < project.lengthMs - 1) {
+      cancelDelayedStart()
+      pb.pause()
+    }
+    wasRunning.current = running
+  })
 
   const state = running ? 'RUNNING' : armed ? 'ARMED' : 'IDLE'
   const stateColor = running ? 'text-green-400' : armed ? 'text-yellow-300' : 'text-white/40'

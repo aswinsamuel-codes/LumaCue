@@ -150,7 +150,7 @@ export function parseCostume(x: unknown): SavedCostume | null {
       !!z && typeof z.id === 'string' && typeof z.name === 'string' && typeof z.leds === 'number' && z.leds >= 1 && z.leds <= 300 && PLACEMENT_IDS.has(z.placement),
   )
   if (!zones.length) return null
-  const brightness = typeof r.brightness === 'number' && r.brightness >= 5 && r.brightness <= 100 ? r.brightness : 25
+  const brightness = typeof r.brightness === 'number' && Number.isFinite(r.brightness) ? Math.max(5, Math.min(100, Math.round(r.brightness))) : 25
   return { zones: zones.map((z) => ({ id: z.id, name: z.name, leds: Math.round(z.leds), placement: z.placement })), brightness }
 }
 

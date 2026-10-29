@@ -11,8 +11,9 @@ function load(): Record<string, BenchResult> {
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {}
     const out: Record<string, BenchResult> = {}
     for (const [id, v] of Object.entries(parsed as Record<string, Partial<BenchResult>>)) {
-      if (v && (v.status === 'pass' || v.status === 'fail' || v.status === 'partial')) {
-        out[id] = { status: v.status, date: String(v.date ?? ''), mode: String(v.mode ?? ''), notes: String(v.notes ?? '') }
+      if (v && typeof v === 'object') {
+        const status = v.status === 'pass' || v.status === 'fail' || v.status === 'partial' ? v.status : null
+        out[id] = { status, date: String(v.date ?? ''), mode: String(v.mode ?? ''), notes: String(v.notes ?? '') }
       }
     }
     return out
@@ -24,23 +25,27 @@ function load(): Record<string, BenchResult> {
 interface BenchLogState {
   results: Record<string, BenchResult>
   setResult: (id: string, patch: Partial<BenchResult>) => void
-  clearResult: (id: string) => void
+  /** Un-choose the result but keep the mode and notes. */
+  clearStatus: (id: string) => void
 }
 
 const today = () => new Date().toISOString().slice(0, 10)
 
+function save(set: (s: Partial<BenchLogState>) => void, results: Record<string, BenchResult>) {
+  set({ results })
+  try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(results)) } catch { /* storage blocked */ }
+}
+
 export const useBenchLogStore = create<BenchLogState>((set, get) => ({
   results: load(),
   setResult: (id, patch) => {
-    const prev = get().results[id] ?? { status: 'pass' as const, date: today(), mode: '', notes: '' }
-    const results = { ...get().results, [id]: { ...prev, ...patch } }
-    set({ results })
-    try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(results)) } catch { /* storage blocked */ }
+    // Typing notes doesn't choose a result; choosing one stamps today's date (also on a retest).
+    const prev = get().results[id] ?? { status: null, date: '', mode: '', notes: '' }
+    const next = { ...prev, ...patch, ...(patch.status ? { date: today() } : {}) }
+    save(set, { ...get().results, [id]: next })
   },
-  clearResult: (id) => {
-    const { [id]: _gone, ...results } = get().results
-    void _gone
-    set({ results })
-    try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(results)) } catch { /* storage blocked */ }
+  clearStatus: (id) => {
+    const prev = get().results[id]
+    if (prev) save(set, { ...get().results, [id]: { ...prev, status: null } })
   },
 }))

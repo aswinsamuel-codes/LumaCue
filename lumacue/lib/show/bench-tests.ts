@@ -33,8 +33,8 @@ export const BENCH_TESTS: BenchTest[] = [
 export type BenchResultStatus = 'pass' | 'fail' | 'partial'
 
 export interface BenchResult {
-  status: BenchResultStatus
-  date: string    // YYYY-MM-DD
+  status: BenchResultStatus | null   // null: notes typed, no result chosen yet
+  date: string    // YYYY-MM-DD, when the result was last set
   mode: string    // e.g. 5 mm, strip, ESP32
   notes: string
 }
@@ -49,7 +49,7 @@ export function benchResultsMarkdown(results: Record<string, BenchResult>, ids =
     '|---|---|---|---|---|',
     ...ids.map((id) => {
       const r = results[id]
-      return r ? `| ${id} | ${cell(r.date)} | ${cell(r.mode)} | ${label[r.status]} | ${cell(r.notes)} |` : `| ${id} | | | | |`
+      return r ? `| ${id} | ${r.status ? cell(r.date) : ''} | ${cell(r.mode)} | ${r.status ? label[r.status] : ''} | ${cell(r.notes)} |` : `| ${id} | | | | |`
     }),
   ].join('\n')
 }
