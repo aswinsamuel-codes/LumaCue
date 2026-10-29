@@ -136,3 +136,19 @@ describe('benchFidelity', () => {
     expect(r.issues[0]?.effect).toBe('twinkle')
   })
 })
+
+describe('benchFingerprint', () => {
+  const p = project([clip({ durationMs: 2000 }), clip({ track: 1, startMs: 3000, effect: 'chase' })])
+  it('is stable for the same show and changes when what the costume plays changes', async () => {
+    const { benchFingerprint } = await import('@/lib/show/bench')
+    const fp = benchFingerprint(p, ZONE_IDS, 0)
+    expect(benchFingerprint({ ...p, clips: [...p.clips] }, ZONE_IDS, 0)).toBe(fp)
+    expect(benchFingerprint({ ...p, lengthMs: 9000 }, ZONE_IDS, 0)).not.toBe(fp)
+    expect(benchFingerprint({ ...p, clips: [{ ...p.clips[0], color: '#00FF00' }, p.clips[1]] }, ZONE_IDS, 0)).not.toBe(fp)
+  })
+  it("ignores edits to other dancers' tracks", async () => {
+    const { benchFingerprint } = await import('@/lib/show/bench')
+    const fp = benchFingerprint(p, ZONE_IDS, 0)
+    expect(benchFingerprint({ ...p, clips: [p.clips[0], { ...p.clips[1], color: '#0000FF' }] }, ZONE_IDS, 0)).toBe(fp)
+  })
+})

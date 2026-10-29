@@ -287,3 +287,15 @@ export function benchFidelity(
     .sort((a, b) => b.mismatchPct - a.mismatchPct)
   return { matchPct: total ? (100 * good) / total : 100, issues }
 }
+
+/**
+ * Identifies exactly what a costume's firmware will play: its cue table and
+ * the show length. If this changes after a download, the costume needs a re-flash.
+ */
+export function benchFingerprint(project: ShowProject, zoneIds: string[], dancer: number) {
+  const { cues } = compileBenchCues(project, zoneIds, dancer)
+  const text = `${Math.round(project.lengthMs)}|` + cues.map((c) => `${c.startMs},${c.durationMs},${c.zoneMask},${c.fx},${c.r},${c.g},${c.b},${c.param}`).join(';')
+  let h = 0x811c9dc5
+  for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 0x01000193)
+  return (h >>> 0).toString(16).padStart(8, '0')
+}

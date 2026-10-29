@@ -13,6 +13,10 @@ import { exportArduinoShow } from '@/lib/show/arduino-export'
 import { buildFirmware } from '@/lib/show/firmware-bundle'
 import type { FirmwareTemplates, LedOutput } from '@/lib/show/firmware-bundle'
 import { makeZip } from '@/lib/zip'
+import { benchFidelity, benchFingerprint, compileBenchCues, CUE_BUDGET } from '@/lib/show/bench'
+import type { BenchOutput } from '@/lib/show/bench'
+import { renderDancer } from '@/lib/show/render'
+import { useFirmwareStore } from '@/store/useFirmwareStore'
 import { useShowStore } from '@/store/useShowStore'
 import { useCostumeStore } from '@/store/useCostumeStore'
 import { useDashboardStore } from '@/store/useDashboardStore'
@@ -32,6 +36,8 @@ export default function TimelineView({ active }: { active: boolean }) {
   const [snap, setSnap] = useState<SnapMode>('grid')
   const [view, setView] = useState<'all' | 'single'>('all')
   const [xray, setXray] = useState(false)
+  const [costumeView, setCostumeView] = useState<BenchOutput | null>(null)
+  const recordDownload = useFirmwareStore((s) => s.recordDownload)
   const [arduino, setArduino] = useState<{ dancer: number; output: LedOutput; error?: string; busy?: boolean } | null>(null)
   const [setupOpen, setSetupOpen] = useState(false)
   const [autoOpen, setAutoOpen] = useState(false)
@@ -90,7 +96,24 @@ export default function TimelineView({ active }: { active: boolean }) {
     }
   }
 
-  const arduinoCode = arduino ? exportArduinoShow(project, zones.map((z) => z.id), arduino.dancer) : ''
+  const zoneIds = useMemo(() => zones.map((z) => z.id), [zones])
+  const arduinoCode = arduino ? exportArduinoShow(project, zoneIds, arduino.dancer) : ''
+
+  // Preflight for the export dialog: will this dancer's costume look like the preview, and does it fit?
+  const preflight = useMemo(() => {
+    if (!arduino) return null
+    const { cues, notes } = compileBenchCues(project, zoneIds, arduino.dancer)
+    const frame = new Float32Array(layout.total * 3)
+    const fidelity = benchFidelity(project, zoneIds, arduino.dancer, (t) => {
+      renderDancer(project, layout, arduino.dancer, t, frame)
+      return layout.zones.slice(0, 3).map((z) => {
+        let r = 0, g = 0, b = 0
+        for (let i = z.start; i < z.start + z.count; i++) { r += frame[i * 3]; g += frame[i * 3 + 1]; b += frame[i * 3 + 2] }
+        return [r / z.count, g / z.count, b / z.count] as [number, number, number]
+      })
+    }, 100)
+    return { cues: cues.length, notes, fidelity }
+  }, [arduino, project, zoneIds, layout])
 
   // Ready-to-upload sketches: the repo templates with this show, its length and the LED type filled in.
   const downloadFirmware = async () => {
@@ -100,13 +123,14 @@ export default function TimelineView({ active }: { active: boolean }) {
       const res = await fetch('/api/firmware')
       const body = await res.json()
       if (!res.ok) throw new Error(body.error ?? `HTTP ${res.status}`)
-      const files = buildFirmware(body as FirmwareTemplates, project, zones.map((z) => z.id), arduino.dancer, arduino.output)
+      const files = buildFirmware(body as FirmwareTemplates, project, zoneIds, arduino.dancer, arduino.output)
       const folder = `lumacue_${project.name.replace(/[^\w-]+/g, '_') || 'show'}_dancer${arduino.dancer + 1}`
       const a = document.createElement('a')
       a.href = URL.createObjectURL(makeZip(files.map((f) => ({ path: `${folder}/${f.path}`, text: f.text }))))
       a.download = `${folder}.zip`
       a.click()
       URL.revokeObjectURL(a.href)
+      recordDownload(arduino.dancer, { fingerprint: benchFingerprint(project, zoneIds, arduino.dancer), output: arduino.output, downloadedAt: Date.now() })
       addLog('SYNC', `Show · firmware for Dancer ${arduino.dancer + 1} downloaded (${folder}.zip, ${formatShowTime(project.lengthMs)})`)
       setArduino({ ...arduino, busy: false })
     } catch (e) {
@@ -127,12 +151,20 @@ export default function TimelineView({ active }: { active: boolean }) {
             focusDancer={focusDancer}
             brightness={brightness}
             xray={xray}
+            bench={costumeView}
             onPickDancer={(d) => selectTrack(d)}
           />
           <div className="absolute top-2 right-2 flex gap-1">
             <button className={view === 'all' ? btnOn : btnIdle} onClick={() => setView('all')}>All dancers</button>
             <button className={view === 'single' ? btnOn : btnIdle} onClick={() => setView('single')}>Dancer {focusDancer + 1}</button>
             <button className={xray ? btnOn : btnIdle} onClick={() => setXray(!xray)} title="Hide the body and show only the LED layout">X-ray</button>
+            <button
+              className={costumeView ? `${btn} bg-yellow-500/20 border-yellow-500/40 text-yellow-200` : btnIdle}
+              onClick={() => setCostumeView(costumeView === null ? '5mm' : costumeView === '5mm' ? 'strip' : null)}
+              title="Preview → what the bench costume firmware will light (5 mm LEDs) → (WS2812B strip) → back to the preview"
+            >
+              {costumeView === null ? 'Preview' : costumeView === '5mm' ? 'Costume: 5 mm' : 'Costume: strip'}
+            </button>
             <button className={btnIdle} onClick={() => setSetupOpen(true)} title="Zones, LED counts, body positions, brightness and battery">⚙ Costume setup</button>
           </div>
         </div>
@@ -247,6 +279,38 @@ export default function TimelineView({ active }: { active: boolean }) {
               </p>
             </div>
             {arduino.error && <p className="text-red-400 text-[11px] font-mono mb-3">Couldn&apos;t build the sketches: {arduino.error}</p>}
+
+            {preflight && (
+              <div className="rounded-lg border border-white/10 bg-black/30 p-3 mb-3 text-[11px] font-mono">
+                <div className="flex flex-wrap gap-x-5 gap-y-1">
+                  <span className={preflight.fidelity.matchPct >= 90 ? 'text-green-300' : preflight.fidelity.matchPct >= 70 ? 'text-yellow-300' : 'text-red-300'}>
+                    Costume matches preview: {Math.round(preflight.fidelity.matchPct)} %
+                  </span>
+                  <span className={preflight.cues > CUE_BUDGET ? 'text-red-300' : 'text-white/50'}>
+                    {preflight.cues} cues (fits ≈ {CUE_BUDGET})
+                  </span>
+                  <button className="text-yellow-200/80 hover:text-yellow-100 underline-offset-2 hover:underline" onClick={() => { setCostumeView(arduino.output); setArduino(null) }}>
+                    See it in Costume view →
+                  </button>
+                </div>
+                {preflight.fidelity.issues.length > 0 && (
+                  <ul className="mt-2 space-y-0.5 max-h-24 overflow-y-auto">
+                    {preflight.fidelity.issues.slice(0, 8).map((i) => (
+                      <li key={`${i.track}-${i.clipStartMs}`}>
+                        <button className="text-left text-white/50 hover:text-white" onClick={() => { pb.seek(i.clipStartMs); setArduino(null) }}>
+                          ⚠ {formatShowTime(i.clipStartMs)} · {i.effect} ({i.track === ALL_DANCERS ? 'all' : `Dancer ${i.track + 1}`}) looks {Math.round(i.mismatchPct)} % different on the costume
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {preflight.notes.length > 0 && (
+                  <ul className="mt-2 space-y-0.5 text-white/35">
+                    {preflight.notes.map((n) => <li key={n}>· {n}</li>)}
+                  </ul>
+                )}
+              </div>
+            )}
 
             <p className="text-white/30 text-[10px] font-mono tracking-widest mb-1">OR COPY THE CUE TABLE ONLY</p>
             <textarea readOnly value={arduinoCode} className="w-full h-56 bg-black/50 border border-white/10 rounded-md p-3 text-[11px] font-mono text-green-200" />

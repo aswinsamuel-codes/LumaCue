@@ -7,6 +7,8 @@ import { useShowPlayback } from '@/lib/show/playback'
 import { isWebSerialSupported } from '@/lib/base-station-serial'
 import { FIRMWARE_SHOW_ID, useCostumeStore } from '@/store/useCostumeStore'
 import { useShowStore } from '@/store/useShowStore'
+import { useFirmwareStore } from '@/store/useFirmwareStore'
+import { benchFingerprint } from '@/lib/show/bench'
 
 /**
  * Show Mode: runs the show on the night. Nothing here edits the show, so a
@@ -21,6 +23,16 @@ export default function ShowModeView() {
   } = useCostumeStore()
   const pb = useShowPlayback()
   const layout = useMemo(() => buildLayout(zones), [zones])
+  const flashed = useFirmwareStore((s) => s.byDancer)
+  // Which costumes carry the show as it is now (by the last firmware download for each dancer).
+  const firmware = useMemo(() => {
+    const ids = zones.map((z) => z.id)
+    return Array.from({ length: project.dancers }, (_, d) => {
+      const rec = flashed[d]
+      return { dancer: d, state: !rec ? 'never' : rec.fingerprint === benchFingerprint(project, ids, d) ? 'ok' : 'stale' } as const
+    })
+  }, [project, zones, flashed])
+  const staleCount = firmware.filter((f) => f.state !== 'ok').length
 
   const handleStart = () => {
     start()
@@ -178,6 +190,30 @@ export default function ShowModeView() {
           >
             Time beacons {beaconsOn ? 'on' : 'OFF (drift test)'}
           </button>
+        </div>
+
+        {/* Preflight: is each costume's firmware built from this show? */}
+        <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-white text-sm font-semibold">Costume firmware</p>
+            <span className={`text-[10px] font-mono ${staleCount ? 'text-yellow-300' : 'text-green-300'}`}>
+              {staleCount ? `${staleCount} to update` : 'all match this show'}
+            </span>
+          </div>
+          <div className="grid grid-cols-5 gap-1">
+            {firmware.map((f) => (
+              <div
+                key={f.dancer}
+                title={f.state === 'ok' ? 'Firmware downloaded for this exact show' : f.state === 'stale' ? 'The show changed after this firmware was downloaded: export and upload again' : 'No firmware downloaded for this dancer yet'}
+                className={`rounded px-1 py-1 text-center text-[10px] font-mono border ${
+                  f.state === 'ok' ? 'border-green-500/30 bg-green-500/10 text-green-300' : f.state === 'stale' ? 'border-yellow-500/40 bg-yellow-500/10 text-yellow-300' : 'border-white/10 text-white/30'
+                }`}
+              >
+                D{f.dancer + 1} {f.state === 'ok' ? '✓' : f.state === 'stale' ? '!' : '–'}
+              </div>
+            ))}
+          </div>
+          <p className="text-white/25 text-[10px] font-mono mt-2">Based on downloads from Show Studio in this browser; it can&apos;t see what is actually on the boards.</p>
         </div>
 
         <p className="text-white/25 text-[10px] font-mono leading-relaxed px-1">
