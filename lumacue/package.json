@@ -9,7 +9,7 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
-    "check": "tsc --noEmit && eslint lib store components tests app && vitest run"
+    "check": "tsc --noEmit && eslint . && vitest run"
   },
   "dependencies": {
     "framer-motion": "^11.18.2",
