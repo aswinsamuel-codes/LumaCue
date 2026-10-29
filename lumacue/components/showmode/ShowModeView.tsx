@@ -9,6 +9,7 @@ import { FIRMWARE_SHOW_ID, useCostumeStore } from '@/store/useCostumeStore'
 import { useShowStore } from '@/store/useShowStore'
 import { useFirmwareStore } from '@/store/useFirmwareStore'
 import { benchFingerprint } from '@/lib/show/bench'
+import { CURRENT_LIMIT_MA, showChecklist, worstCaseMilliamps } from '@/lib/show/checklist'
 
 /**
  * Show Mode: runs the show on the night. Nothing here edits the show, so a
@@ -34,6 +35,15 @@ export default function ShowModeView() {
     })
   }, [project, zones, flashed, brightness])
   const staleCount = firmware.filter((f) => f.state !== 'ok').length
+
+  const checklist = showChecklist({
+    baseKind, baseShowLengthMs, showLengthMs: project.lengthMs,
+    firmware: firmware.map((f) => f.state),
+    showAudioName: project.audioName, loadedAudioName: pb.audio?.name ?? null,
+    musicSync, speakerDelayMs,
+    worstCaseMa: worstCaseMilliamps(layout.total, brightness), currentLimitMa: CURRENT_LIMIT_MA,
+  })
+  const toFix = checklist.filter((c) => c.level === 'fail').length
 
   // With a speaker delay, the music starts now and the costumes when the audience hears it.
   const delayedStart = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -196,8 +206,57 @@ export default function ShowModeView() {
           </p>
         </div>
 
-        {/* Cues */}
-        <div className="rounded-xl border border-white/10 bg-white/5 p-4 flex flex-col gap-2">
+        {/* Preflight: is each costume's firmware built from this show? */}
+        <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-white text-sm font-semibold">Costume firmware</p>
+            <span className={`text-[10px] font-mono ${staleCount ? 'text-yellow-300' : 'text-green-300'}`}>
+              {staleCount ? `${staleCount} to update` : 'all match this show'}
+            </span>
+          </div>
+          <div className="grid grid-cols-5 gap-1">
+            {firmware.map((f) => (
+              <div
+                key={f.dancer}
+                title={f.state === 'ok' ? 'Firmware downloaded for this exact show' : f.state === 'stale' ? 'The show changed after this firmware was downloaded: export and upload again' : 'No firmware downloaded for this dancer yet'}
+                className={`rounded px-1 py-1 text-center text-[10px] font-mono border ${
+                  f.state === 'ok' ? 'border-green-500/30 bg-green-500/10 text-green-300' : f.state === 'stale' ? 'border-yellow-500/40 bg-yellow-500/10 text-yellow-300' : 'border-white/10 text-white/30'
+                }`}
+              >
+                D{f.dancer + 1} {f.state === 'ok' ? '✓' : f.state === 'stale' ? '!' : '–'}
+              </div>
+            ))}
+          </div>
+          <p className="text-white/25 text-[10px] font-mono mt-2">Based on downloads from Show Studio in this browser; it can&apos;t see what is actually on the boards.</p>
+        </div>
+
+        <p className="text-white/25 text-[10px] font-mono leading-relaxed px-1">
+          Costumes play the show stored in their firmware (show {FIRMWARE_SHOW_ID}). After editing in Show Studio, export it with
+          &quot;→ Costume firmware&quot; and upload it, or the costumes won&apos;t match this preview. If the radio drops, costumes keep
+          playing; each costume&apos;s power switch is the real emergency cut-off.
+        </p>
+        {/* Show-night checklist */}
+        <div className={`rounded-xl border p-4 ${toFix ? 'border-red-500/30 bg-red-500/[0.04]' : 'border-white/10 bg-white/5'}`}>
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-white text-sm font-semibold">Checklist</p>
+            <span className={`text-[10px] font-mono ${toFix ? 'text-red-300' : 'text-green-300'}`}>{toFix ? `${toFix} to fix before the show` : 'ready'}</span>
+          </div>
+          <ul className="space-y-1">
+            {/* During the show only the problems are worth the space */}
+            {checklist.filter((c) => !running || c.level !== 'ok').map((c) => (
+              <li key={c.id} className={`flex gap-2 text-[11px] leading-snug ${c.level === 'ok' ? 'text-white/45' : c.level === 'warn' ? 'text-yellow-200/80' : 'text-red-300'}`}>
+                <span className="shrink-0 w-3 text-center">{c.level === 'ok' ? '✓' : c.level === 'warn' ? '!' : '✕'}</span>
+                <span>{c.text}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        {/* Cues: pinned to the bottom of the column so START and BLACKOUT never scroll out of view */}
+        <div className="sticky bottom-0 z-10 rounded-xl border border-white/10 bg-[#141416] p-4 flex flex-col gap-2 shadow-[0_-12px_24px_rgba(0,0,0,0.6)]">
+          {toFix > 0 && !running && (
+            <p className="text-red-300 text-[11px] font-mono -mt-1">✕ Checklist: {toFix} to fix before the show (above)</p>
+          )}
           {startPoints.length > 1 && (
             <label className="flex items-center justify-between gap-2 text-[11px] font-mono text-white/50">
               Start from
@@ -252,35 +311,6 @@ export default function ShowModeView() {
           </button>
         </div>
 
-        {/* Preflight: is each costume's firmware built from this show? */}
-        <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-white text-sm font-semibold">Costume firmware</p>
-            <span className={`text-[10px] font-mono ${staleCount ? 'text-yellow-300' : 'text-green-300'}`}>
-              {staleCount ? `${staleCount} to update` : 'all match this show'}
-            </span>
-          </div>
-          <div className="grid grid-cols-5 gap-1">
-            {firmware.map((f) => (
-              <div
-                key={f.dancer}
-                title={f.state === 'ok' ? 'Firmware downloaded for this exact show' : f.state === 'stale' ? 'The show changed after this firmware was downloaded: export and upload again' : 'No firmware downloaded for this dancer yet'}
-                className={`rounded px-1 py-1 text-center text-[10px] font-mono border ${
-                  f.state === 'ok' ? 'border-green-500/30 bg-green-500/10 text-green-300' : f.state === 'stale' ? 'border-yellow-500/40 bg-yellow-500/10 text-yellow-300' : 'border-white/10 text-white/30'
-                }`}
-              >
-                D{f.dancer + 1} {f.state === 'ok' ? '✓' : f.state === 'stale' ? '!' : '–'}
-              </div>
-            ))}
-          </div>
-          <p className="text-white/25 text-[10px] font-mono mt-2">Based on downloads from Show Studio in this browser; it can&apos;t see what is actually on the boards.</p>
-        </div>
-
-        <p className="text-white/25 text-[10px] font-mono leading-relaxed px-1">
-          Costumes play the show stored in their firmware (show {FIRMWARE_SHOW_ID}). After editing in Show Studio, export it with
-          &quot;→ Costume firmware&quot; and upload it, or the costumes won&apos;t match this preview. If the radio drops, costumes keep
-          playing; each costume&apos;s power switch is the real emergency cut-off.
-        </p>
       </div>
     </div>
   )
