@@ -19,12 +19,13 @@ The login access code is in `components/LoginPage.tsx`. It's a client-side check
 |---|---|---|
 | 1. Costume | Show Studio → **⚙ Costume setup** | Pick a **template** (Bench test, Hand bands + jacket, Full suit…) or set zones, LED counts and body positions. Set the brightness cap. It's saved in the browser and inside saved show files |
 | 2. Music | **♪ Load music** | Waveform, beat grid and energy sections. **✨ Auto cues** writes a first draft from the beat. Palette **Bench 5 mm** uses only colours the red/green bench LEDs can show |
-| 3. Edit | Timeline + Inspector | Clips on the *All costumes* track and on each dancer's track. Space plays, Ctrl+Z undoes, Ctrl+D duplicates |
+| 3. Edit | Timeline + Inspector | Clips on the *All costumes* track and on each dancer's track. Space plays, Ctrl+Z undoes, Ctrl+D duplicates. **Spread across dancers** turns a clip into a staggered copy per dancer (the hand-sweep look). **🎥 Video** plays a filmed rehearsal in step with the show |
 | 4. Sections | **§ Sections** | Parts of the show where some zones stay dark, e.g. *Hands only*, then *Full costume* |
 | 5. Check | Twin: **Preview → Costume: 5 mm → Costume: strip** | Shows what the bench firmware will really light |
-| 6. Firmware | **→ Costume firmware** | Preflight (how closely costume and preview match, cue budget, clips that will look different), then download **one dancer** or **all dancers** as a zip of Arduino sketches |
+| 6. Firmware | **→ Costume firmware** | Board: **Nano bench** (NRF24) or **ESP32** (ESP-NOW, not yet compiled). Preflight shows how closely costume and preview match, cue budget, clips that will look different, and power (avg/peak/mAh/bank runtime). Then download **one dancer** or **all dancers** as a zip of Arduino sketches. **Cue sheet** exports a printable CSV of every cue |
 | 7. Upload | Arduino IDE | `base_station.ino` to the base Nano, `dancer_NN/test_costume/test_costume.ino` to each costume. See `../firmware/bench_sync_test/README.md` |
-| 8. Run | **Show Mode** | **CONNECT USB** (or **SIMULATE** with no hardware) → ARM → START. *Start from* a section for rehearsals. **Music sync** keeps the base on the song; set **Speaker delay** for the venue's sound system. RESTART needs a 1 s hold; BLACKOUT is instant. The *Costume firmware* panel shows which costumes need re-flashing |
+| 8. Run | **Show Mode** | **CONNECT USB** (or **SIMULATE** with no hardware) → ARM → START. The **Checklist** must be green. *Start from* a section for rehearsals. **Music sync** keeps the base on the song; set **Speaker delay** for the venue's sound system. RESTART needs a 1 s hold; BLACKOUT is instant. The *Costume firmware* panel shows which costumes need re-flashing |
+| Bench | Show Mode → **Bench tests** | Log T1–T12 (and ESP32 E1–E5). With music sync off, Show Mode measures the base clock's drift in ppm for T12. *Copy results table* fills in the bench README |
 
 **Save file / Open** writes and reads a `.lumacue.json` file: the show, its sections and the costume setup. Damaged files are repaired where possible and refused with a clear message otherwise.
 
