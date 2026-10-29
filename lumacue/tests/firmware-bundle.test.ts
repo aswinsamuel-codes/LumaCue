@@ -47,3 +47,22 @@ describe('buildFirmware (with the real sketches in firmware/)', () => {
     expect(() => buildFirmware({ ...t, costumeIno: t.costumeIno.replaceAll('SHOW_LENGTH_MS', 'SHOW_LEN') }, p, ZONE_IDS, 0, '5mm')).toThrow(/SHOW_LENGTH_MS/)
   })
 })
+
+describe('buildFirmwareForAll', () => {
+  it('has one base sketch and a costume sketch per dancer, each with its own cues', async () => {
+    const { buildFirmwareForAll } = await import('@/lib/show/firmware-bundle')
+    const show = project([clip({ durationMs: 1000 }), clip({ track: 1, startMs: 2000, color: '#00FF00' })], { dancers: 3 })
+    const files = buildFirmwareForAll(templates(), show, ZONE_IDS, '5mm')
+    expect(files.map((f) => f.path)).toEqual([
+      'base_station/base_station.ino', 'base_station/lumacue_protocol.h',
+      'dancer_01/test_costume/test_costume.ino', 'dancer_01/test_costume/lumacue_protocol.h',
+      'dancer_02/test_costume/test_costume.ino', 'dancer_02/test_costume/lumacue_protocol.h',
+      'dancer_03/test_costume/test_costume.ino', 'dancer_03/test_costume/lumacue_protocol.h',
+      'README.txt',
+    ])
+    const table = (d: number) => parseCueTable(files.find((f) => f.path === `dancer_0${d}/test_costume/test_costume.ino`)!.text)
+    expect(table(1)).toHaveLength(1)
+    expect(table(2)).toHaveLength(2) // dancer 2 has its own green clip
+    expect(table(2)[1].g).toBe(255)
+  })
+})

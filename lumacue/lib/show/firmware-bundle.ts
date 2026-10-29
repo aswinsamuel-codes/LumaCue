@@ -81,3 +81,38 @@ export function buildFirmware(
     { path: 'README.txt', text: readme },
   ]
 }
+
+/**
+ * Every dancer at once: the base station sketch once, then one costume sketch
+ * per dancer in dancer_01/ … (each folder still opens as an Arduino sketch).
+ */
+export function buildFirmwareForAll(
+  t: FirmwareTemplates,
+  project: ShowProject,
+  zoneIds: string[],
+  output: LedOutput,
+  generatedAt = new Date(),
+  strip?: StripSettings,
+): { path: string; text: string }[] {
+  const files: { path: string; text: string }[] = []
+  const pad = String(project.dancers).length < 2 ? 2 : String(project.dancers).length
+  for (let d = 0; d < project.dancers; d++) {
+    const one = buildFirmware(t, project, zoneIds, d, output, generatedAt, strip)
+    if (d === 0) files.push(...one.filter((f) => f.path.startsWith('base_station/')))
+    const dir = `dancer_${String(d + 1).padStart(pad, '0')}`
+    files.push(...one.filter((f) => f.path.startsWith('test_costume/')).map((f) => ({ path: `${dir}/${f.path}`, text: f.text })))
+  }
+  const readme = [
+    `LumaCue firmware for "${project.name.replace(/[\r\n]+/g, ' ')}": all ${project.dancers} dancers`,
+    `Show length: ${(Math.round(project.lengthMs) / 1000).toFixed(1)} s · LED output: ${output === 'strip' ? 'WS2812B strip (needs the FastLED library)' : '5 mm bi-colour LEDs'}`,
+    '',
+    '1. Upload base_station/base_station.ino to the base Nano (once).',
+    '2. For each dancer, upload dancer_NN/test_costume/test_costume.ino to that dancer\'s costume. Label the boards!',
+    '3. Close the Arduino Serial Monitor, then in LumaCue Show Mode click CONNECT USB, ARM, START.',
+    '',
+    'Board: Arduino Nano · Processor: ATmega328P (Old Bootloader) · Libraries: RF24' + (output === 'strip' ? ', FastLED' : ''),
+    '',
+  ].join('\r\n')
+  files.push({ path: 'README.txt', text: readme })
+  return files
+}

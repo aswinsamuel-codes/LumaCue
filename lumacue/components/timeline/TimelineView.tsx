@@ -11,7 +11,7 @@ import { buildLayout } from '@/lib/show/body'
 import { ALL_DANCERS, formatShowTime, parseShowProject } from '@/lib/show/model'
 import { useShowPlayback } from '@/lib/show/playback'
 import { exportArduinoShow } from '@/lib/show/arduino-export'
-import { buildFirmware } from '@/lib/show/firmware-bundle'
+import { buildFirmware, buildFirmwareForAll } from '@/lib/show/firmware-bundle'
 import type { FirmwareTemplates, LedOutput } from '@/lib/show/firmware-bundle'
 import { makeZip } from '@/lib/zip'
 import { benchFidelity, benchFingerprint, compileBenchCues, CUE_BUDGET } from '@/lib/show/bench'
@@ -121,22 +121,27 @@ export default function TimelineView({ active }: { active: boolean }) {
   }, [arduino, project, zoneIds, layout, zones])
 
   // Ready-to-upload sketches: the repo templates with this show, its length and the LED type filled in.
-  const downloadFirmware = async () => {
+  const downloadFirmware = async (all: boolean) => {
     if (!arduino) return
     setArduino({ ...arduino, busy: true, error: undefined })
     try {
       const res = await fetch('/api/firmware')
       const body = await res.json()
       if (!res.ok) throw new Error(body.error ?? `HTTP ${res.status}`)
-      const files = buildFirmware(body as FirmwareTemplates, project, zoneIds, arduino.dancer, arduino.output, new Date(), { zoneLeds: zones.map((z) => z.leds), brightnessPct: brightness })
-      const folder = `lumacue_${project.name.replace(/[^\w-]+/g, '_') || 'show'}_dancer${arduino.dancer + 1}`
+      const strip = { zoneLeds: zones.map((z) => z.leds), brightnessPct: brightness }
+      const files = all
+        ? buildFirmwareForAll(body as FirmwareTemplates, project, zoneIds, arduino.output, new Date(), strip)
+        : buildFirmware(body as FirmwareTemplates, project, zoneIds, arduino.dancer, arduino.output, new Date(), strip)
+      const folder = `lumacue_${project.name.replace(/[^\w-]+/g, '_') || 'show'}_${all ? 'all_dancers' : `dancer${arduino.dancer + 1}`}`
       const a = document.createElement('a')
       a.href = URL.createObjectURL(makeZip(files.map((f) => ({ path: `${folder}/${f.path}`, text: f.text }))))
       a.download = `${folder}.zip`
       a.click()
       URL.revokeObjectURL(a.href)
-      recordDownload(arduino.dancer, { fingerprint: benchFingerprint(project, zoneIds, arduino.dancer), output: arduino.output, downloadedAt: Date.now() })
-      addLog('SYNC', `Show · firmware for Dancer ${arduino.dancer + 1} downloaded (${folder}.zip, ${formatShowTime(project.lengthMs)})`)
+      for (const d of all ? Array.from({ length: project.dancers }, (_, i) => i) : [arduino.dancer]) {
+        recordDownload(d, { fingerprint: benchFingerprint(project, zoneIds, d), output: arduino.output, downloadedAt: Date.now() })
+      }
+      addLog('SYNC', `Show · firmware for ${all ? `all ${project.dancers} dancers` : `Dancer ${arduino.dancer + 1}`} downloaded (${folder}.zip, ${formatShowTime(project.lengthMs)})`)
       setArduino({ ...arduino, busy: false })
     } catch (e) {
       setArduino({ ...arduino, busy: false, error: (e as Error).message })
@@ -285,8 +290,11 @@ export default function TimelineView({ active }: { active: boolean }) {
             </div>
 
             <div className="rounded-lg border border-purple-500/30 bg-purple-500/10 p-3 mb-3 flex items-center gap-3">
-              <button className={`${btn} bg-purple-500/30 border-purple-500/60 text-purple-100 hover:bg-purple-500/40 text-xs px-4 py-2`} onClick={() => void downloadFirmware()} disabled={arduino.busy}>
-                {arduino.busy ? 'Preparing…' : '⬇ Download sketches (.zip)'}
+              <button className={`${btn} bg-purple-500/30 border-purple-500/60 text-purple-100 hover:bg-purple-500/40 text-xs px-4 py-2`} onClick={() => void downloadFirmware(false)} disabled={arduino.busy}>
+                {arduino.busy ? 'Preparing…' : `⬇ Dancer ${arduino.dancer + 1} (.zip)`}
+              </button>
+              <button className={`${btn} bg-purple-500/15 border-purple-500/40 text-purple-200 hover:bg-purple-500/30 text-xs px-3 py-2`} onClick={() => void downloadFirmware(true)} disabled={arduino.busy} title="Base station once, plus a costume sketch for every dancer in dancer_01/, dancer_02/ …">
+                ⬇ All {project.dancers} dancers
               </button>
               <p className="text-white/50 text-[11px]">
                 Both sketches, ready to upload: show, length ({formatShowTime(project.lengthMs)}) and LED type already set. Unzip, open each <code>.ino</code> in the Arduino IDE, upload.
