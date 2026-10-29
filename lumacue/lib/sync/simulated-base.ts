@@ -56,11 +56,13 @@ export class SimulatedBase implements BaseLink {
   async send(command: BaseCommand) {
     if (!this.onLine) throw new Error('Base station not connected')
     if (command === 'ARM') this.say('ARM sent for show 1')
-    else if (command === 'START') {
+    else if (command === 'START' || /^S\d+$/.test(command)) {
+      const from = command === 'START' ? 0 : Number(command.slice(1))
+      if (from >= this.o.showLengthMs()) return this.say('start point is past the end of the show')
       this.runId = (this.runId + 1) & 255
-      this.runStart = this.millis()
+      this.runStart = this.millis() - from
       this.running = true
-      this.say(`START run ${this.runId}`)
+      this.say(`START run ${this.runId}${from ? ` from ${from}` : ''}`)
     } else if (command === 'BLACKOUT') {
       this.running = false
       this.say('BLACKOUT sent')

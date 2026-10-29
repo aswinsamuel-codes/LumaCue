@@ -49,7 +49,8 @@ interface CostumeState {
   watchBaseStation: () => void
   disconnectBase: () => Promise<void>
   arm: () => void
-  start: () => void
+  /** Start the costumes, optionally from the middle of the show (rehearsal). */
+  start: (fromMs?: number) => void
   blackout: () => void
   toggleBeacons: () => void
   showEnded: () => void
@@ -91,6 +92,12 @@ function onBaseLine(line: string) {
     useCostumeStore.setState({ baseDriftMs: err })
     // Only big corrections are worth a log line; small ones are routine.
     if (Math.abs(err) >= 20) log('WARN', `Base clock was ${err > 0 ? '+' : ''}${err} ms off the music; corrected`)
+    return
+  }
+  if (/^unknown command: S\d+/.test(line)) {
+    // Older base firmware: the costumes did not start.
+    useCostumeStore.setState({ running: false, armed: false })
+    log('ERROR', 'This base station firmware cannot start from the middle, so the costumes did NOT start. Upload the latest base_station.ino, or start from 0:00')
     return
   }
   if (/^unknown command: T\d+/.test(line)) {
@@ -257,10 +264,11 @@ export const useCostumeStore = create<CostumeState>((set, get) => ({
     void sendToBase('ARM')
   },
 
-  start: () => {
+  start: (fromMs = 0) => {
+    const from = Math.max(0, Math.round(fromMs))
     set({ running: true })
-    log('SYNC', `START show ${FIRMWARE_SHOW_ID}${get().baseConnected ? '' : ' (preview only, no base station)'}`)
-    void sendToBase('START')
+    log('SYNC', `START show ${FIRMWARE_SHOW_ID}${from ? ` from ${(from / 1000).toFixed(1)} s` : ''}${get().baseConnected ? '' : ' (preview only, no base station)'}`)
+    void sendToBase(from ? `S${from}` : 'START')
   },
 
   blackout: () => {

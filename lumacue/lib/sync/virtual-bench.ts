@@ -131,7 +131,8 @@ export interface SimResult {
 }
 
 export type SimEvent =
-  | { atMs: number; do: 'ARM' | 'START' | 'BLACKOUT' | 'BEACONS_OFF' | 'BEACONS_ON' }
+  | { atMs: number; do: 'ARM' | 'BLACKOUT' | 'BEACONS_OFF' | 'BEACONS_ON' }
+  | { atMs: number; do: 'START'; fromMs?: number }   // fromMs: base S<ms> command (rehearse from the middle)
   | { atMs: number; do: 'RADIO'; lossPct: number }
 
 /**
@@ -179,16 +180,17 @@ export function simulateBench(o: BenchSimOptions, events: SimEvent[], untilMs: n
       if (e.do === 'RADIO') { loss = e.lossPct; continue }
       if (e.do === 'ARM') for (let i = 0; i < 3; i++) pending.push({ at: T + i * START_REPEAT_GAP, fn: () => send('ARM', 0, T + i * START_REPEAT_GAP) })
       if (e.do === 'START') {
-        // The laptop starts the music and sends START over USB at the same moment.
+        // The laptop starts the music (at fromMs) and sends START over USB at the same moment.
+        const from = e.fromMs ?? 0
         runId = (runId + 1) & 255
-        runStartMillis = baseMillis(T)
+        runStartMillis = baseMillis(T) - from
         running = true
-        musicStartT = T
+        musicStartT = T - from
         for (let i = 0; i < START_REPEATS; i++) {
           const at = T + i * START_REPEAT_GAP
           pending.push({ at, fn: () => send('START', baseMillis(at) - runStartMillis, at) })
         }
-        lastBeaconMs = 2 * START_REPEAT_GAP
+        lastBeaconMs = from + 2 * START_REPEAT_GAP
         nextMusicSync = o.musicSyncEveryMs ? T + o.musicSyncEveryMs : Infinity
       }
       if (e.do === 'BLACKOUT') { running = false; for (let i = 0; i < 5; i++) pending.push({ at: T + i * 5, fn: () => send('BLACKOUT', 0, T + i * 5) }) }

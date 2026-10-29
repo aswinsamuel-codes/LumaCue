@@ -11,6 +11,8 @@
 //   b / BLACKOUT   all costumes off, stop the show
 //   n / BEACONS    toggle time beacons on/off (drift test)
 //   ? / STATUS     print state
+//   S<ms>          start the show from <ms> (rehearse from the middle);
+//                  costumes join at that point, no costume change needed
 //   T<ms>          music sync: the laptop's music is at <ms>; re-anchor the
 //                  show clock to it (LumaCue sends this every 2 s while playing)
 // Optional: a push button from D2 to GND toggles START / BLACKOUT.
@@ -66,9 +68,10 @@ void cmdArm() {
   Serial.print(F("ARM sent for show ")); Serial.println(SHOW_ID);
 }
 
-void cmdStart() {
+void cmdStart(uint32_t fromMs = 0) {
+  if (fromMs >= SHOW_LENGTH_MS) { Serial.println(F("start point is past the end of the show")); return; }
   runId++;
-  runStartMillis = millis();
+  runStartMillis = millis() - fromMs;
   running = true;
   // Each repeat carries the real elapsed show time, so a costume that only
   // hears the 2nd or 3rd copy still lands on the same clock.
@@ -77,7 +80,9 @@ void cmdStart() {
     if (i + 1 < START_REPEATS) delay(START_REPEAT_GAP);
   }
   lastBeaconMs = showMs();
-  Serial.print(F("START run ")); Serial.println(runId);
+  Serial.print(F("START run ")); Serial.print(runId);
+  if (fromMs) { Serial.print(F(" from ")); Serial.print(fromMs); }
+  Serial.println();
 }
 
 void cmdBlackout() {
@@ -117,6 +122,7 @@ void handleLine(const char* s) {
   }
   else if (!strcmp(s, "?") || !strcasecmp(s, "STATUS")) cmdStatus();
   else if ((s[0] == 'T' || s[0] == 't') && isdigit(s[1])) cmdMusicSync(strtoul(s + 1, NULL, 10));
+  else if ((s[0] == 'S' || s[0] == 's') && isdigit(s[1])) cmdStart(strtoul(s + 1, NULL, 10));
   else if (s[0]) { Serial.print(F("unknown command: ")); Serial.println(s); }
 }
 

@@ -41,12 +41,19 @@ export default function ShowModeView() {
     if (delayedStart.current) clearTimeout(delayedStart.current)
     delayedStart.current = null
   }
+  // Rehearsal: start from a section instead of the top (the base sends S<ms>; costumes join there).
+  const [startFrom, setStartFrom] = useState(0)
+  const startPoints = useMemo(
+    () => [{ ms: 0, label: 'the top (0:00)' }, ...(project.sections ?? []).map((s) => ({ ms: s.startMs, label: `§ ${s.name} (${formatShowTime(s.startMs)})` }))],
+    [project.sections],
+  )
+  const from = startFrom < project.lengthMs ? startFrom : 0
   const handleStart = () => {
     cancelDelayedStart()
-    pb.seek(0)
+    pb.seek(from)
     pb.play()
-    if (speakerDelayMs > 0) delayedStart.current = setTimeout(() => { delayedStart.current = null; start() }, speakerDelayMs)
-    else start()
+    if (speakerDelayMs > 0) delayedStart.current = setTimeout(() => { delayedStart.current = null; start(from) }, speakerDelayMs)
+    else start(from)
   }
 
   const handleBlackout = () => {
@@ -182,6 +189,20 @@ export default function ShowModeView() {
 
         {/* Cues */}
         <div className="rounded-xl border border-white/10 bg-white/5 p-4 flex flex-col gap-2">
+          {startPoints.length > 1 && (
+            <label className="flex items-center justify-between gap-2 text-[11px] font-mono text-white/50">
+              Start from
+              <select
+                value={from}
+                disabled={running}
+                onChange={(e) => setStartFrom(Number(e.target.value))}
+                className={`min-w-0 flex-1 bg-black/40 border rounded px-1 py-1 text-xs disabled:opacity-40 ${from ? 'border-amber-400/50 text-amber-200' : 'border-white/10 text-white'}`}
+                aria-label="Start the show from"
+              >
+                {startPoints.map((p) => <option key={p.ms} value={p.ms}>{p.label}</option>)}
+              </select>
+            </label>
+          )}
           <button
             onClick={arm}
             disabled={running}
@@ -203,7 +224,7 @@ export default function ShowModeView() {
                 style={{ width: holding ? '100%' : '0%', transition: holding ? 'width 1s linear' : 'none' }}
               />
             )}
-            <span className="relative">{running ? (holding ? 'KEEP HOLDING…' : '↻ HOLD TO RESTART') : '▶ START'}</span>
+            <span className="relative">{running ? (holding ? 'KEEP HOLDING…' : '↻ HOLD TO RESTART') : from ? `▶ START AT ${formatShowTime(from)}` : '▶ START'}</span>
           </button>
           <button
             onClick={handleBlackout}

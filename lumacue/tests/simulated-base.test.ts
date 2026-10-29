@@ -47,3 +47,21 @@ describe('SimulatedBase', () => {
     await base.disconnect()
   })
 })
+
+describe('SimulatedBase start from', () => {
+  it('starts its clock at the given point, like S<ms> on the base', async () => {
+    let now = 0
+    const lines: string[] = []
+    const base = new SimulatedBase({ clockPpm: 0, showLengthMs: () => 180000, now: () => now })
+    await base.connect((l) => lines.push(l), () => {})
+    await base.send('S45000')
+    now = 1000
+    await base.send('STATUS')
+    await base.send('S999999')
+    await flush()
+    expect(lines).toContain('START run 1 from 45000')
+    expect(lines.find((l) => l.startsWith('show=1'))).toMatch(/t=46000/)
+    expect(lines.at(-1)).toBe('start point is past the end of the show')
+    await base.disconnect()
+  })
+})

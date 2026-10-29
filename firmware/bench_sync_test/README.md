@@ -98,6 +98,7 @@ Base commands:
 | `b` or `BLACKOUT` | All off, show stopped |
 | `n` or `BEACONS` | Turns time beacons on/off (drift test) |
 | `?` or `STATUS` | Prints state |
+| `S<ms>` (e.g. `S45000`) | Start the show from 45 s, for rehearsing a part. Costumes join at that point (same costume sketch). LumaCue Show Mode's "Start from" uses it |
 | `T<ms>` (e.g. `T60000`) | Music sync: "the laptop's music is at <ms>". Re-anchors the show clock to the music and prints `sync err_ms=<how far off the base was>`. LumaCue Show Mode sends it every 2 s while running ("Music sync" checkbox) |
 
 The demo show (30 s, stored on the costume):

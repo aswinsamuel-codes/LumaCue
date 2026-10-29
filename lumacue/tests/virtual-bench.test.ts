@@ -73,3 +73,13 @@ describe('virtual bench: base clock vs the music (risk R-SYNC-1)', () => {
     expect(r.maxSpread).toBeLessThanOrEqual(10)
   })
 })
+
+describe('virtual bench: start from the middle (base S<ms>)', () => {
+  it('costumes join at the start point with the unchanged costume firmware', () => {
+    const r = simulateBench(base({ musicSyncEveryMs: 2000 }), [{ atMs: 500, do: 'ARM' }, { atMs: 1000, do: 'START', fromMs: 90000 }], 1000 + 30000)
+    expect(r.costumeLogs.every((l) => l[0] === 'START run 1 at t=90000')).toBe(true)
+    const last = r.samples.at(-1)!
+    expect(last.t).toBeGreaterThan(119000)
+    expect(last.costumeShowMs.every((s) => s !== null && Math.abs(s - last.t) < 5)).toBe(true)
+  })
+})
