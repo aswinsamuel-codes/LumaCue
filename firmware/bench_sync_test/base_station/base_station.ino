@@ -100,6 +100,7 @@ void cmdMusicSync(uint32_t musicMs) {
 
 void cmdStatus() {
   Serial.print(F("show=")); Serial.print(SHOW_ID);
+  Serial.print(F(" len=")); Serial.print(SHOW_LENGTH_MS);
   Serial.print(F(" run=")); Serial.print(runId);
   Serial.print(F(" running=")); Serial.print(running ? F("yes") : F("no"));
   if (running) { Serial.print(F(" t=")); Serial.print(showMs()); }

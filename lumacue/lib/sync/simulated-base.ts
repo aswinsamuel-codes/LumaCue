@@ -68,7 +68,7 @@ export class SimulatedBase implements BaseLink {
       this.beacons = !this.beacons
       this.say(`beacons ${this.beacons ? 'on' : 'off'}`)
     } else if (command === 'STATUS') {
-      this.say(`show=1 run=${this.runId} running=${this.running ? 'yes' : 'no'}${this.running ? ` t=${this.showMs()}` : ''} beacons=${this.beacons ? 'on' : 'off'}`)
+      this.say(`show=1 len=${Math.round(this.o.showLengthMs())} run=${this.runId} running=${this.running ? 'yes' : 'no'}${this.running ? ` t=${this.showMs()}` : ''} beacons=${this.beacons ? 'on' : 'off'}`)
     } else if (/^T\d+$/.test(command)) {
       if (!this.running) return
       const music = Number(command.slice(1))

@@ -18,7 +18,7 @@ import { benchFingerprint } from '@/lib/show/bench'
 export default function ShowModeView() {
   const project = useShowStore((s) => s.project)
   const {
-    zones, brightness, baseConnected, baseKind, armed, running, beaconsOn, musicSync, baseDriftMs,
+    zones, brightness, baseConnected, baseKind, armed, running, beaconsOn, musicSync, baseDriftMs, baseShowLengthMs,
     connectBase, connectSimulator, disconnectBase, arm, start, blackout, toggleBeacons, showEnded, setMusicSync, syncToMusic,
   } = useCostumeStore()
   const pb = useShowPlayback()
@@ -123,6 +123,12 @@ export default function ShowModeView() {
               </button>
             </div>
           </div>
+          {baseConnected && baseShowLengthMs !== null && Math.abs(baseShowLengthMs - project.lengthMs) > 100 && (
+            <p className="mt-3 rounded-md border border-yellow-500/40 bg-yellow-500/10 px-2 py-1.5 text-yellow-200 text-[11px] font-mono">
+              ⚠ The base station&apos;s firmware is for a {formatShowTime(baseShowLengthMs)} show, this one is {formatShowTime(project.lengthMs)}.
+              It will {baseShowLengthMs < project.lengthMs ? 'stop the show early' : 'keep beaconing after the end'}. Download the firmware again and upload base_station.ino.
+            </p>
+          )}
           <div className="mt-3 flex items-center justify-between gap-2 text-[11px] font-mono">
             <label className="flex items-center gap-2 text-white/50 cursor-pointer" title="Every 2 s, tell the base station where the music is, so the costumes follow the song and not the base's own clock">
               <input type="checkbox" checked={musicSync} onChange={(e) => setMusicSync(e.target.checked)} className="accent-purple-500" />

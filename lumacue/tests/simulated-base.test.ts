@@ -20,7 +20,7 @@ describe('SimulatedBase', () => {
     expect(lines).toContain('ARM sent for show 1')
     expect(lines).toContain('START run 1')
     expect(lines).toContain('sync err_ms=120')               // 0.2 % of 60 s
-    expect(lines.at(-1)).toMatch(/^show=1 run=1 running=yes t=60000 beacons=on$/)
+    expect(lines.at(-1)).toMatch(/^show=1 len=180000 run=1 running=yes t=60000 beacons=on$/)
     await base.disconnect()
   })
 

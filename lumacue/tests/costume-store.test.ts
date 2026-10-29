@@ -49,4 +49,15 @@ describe('costume store with the simulated base station', () => {
     s.blackout()
     expect(useCostumeStore.getState()).toMatchObject({ running: false, armed: false })
   })
+
+  it('learns the show length compiled into the base station from STATUS', async () => {
+    const { useShowStore } = await import('@/store/useShowStore')
+    useShowStore.getState().setProject({ lengthMs: 42000 })
+    await useCostumeStore.getState().connectSimulator()
+    await flush()
+    await flush()
+    expect(useCostumeStore.getState().baseShowLengthMs).toBe(42000)
+    await useCostumeStore.getState().disconnectBase()
+    expect(useCostumeStore.getState().baseShowLengthMs).toBeNull()
+  })
 })

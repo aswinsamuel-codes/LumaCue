@@ -24,6 +24,8 @@ interface CostumeState {
   musicSync: boolean
   /** Base clock minus music at the last sync, ms (+ = base was ahead). */
   baseDriftMs: number | null
+  /** SHOW_LENGTH_MS compiled into the base station (from STATUS), if known. */
+  baseShowLengthMs: number | null
   armed: boolean
   running: boolean
   beaconsOn: boolean
@@ -76,12 +78,14 @@ function onBaseLine(line: string) {
     useCostumeStore.setState({ musicSync: false })
     return
   }
+  const len = /len=(\d+)/.exec(line)
+  if (len) useCostumeStore.setState({ baseShowLengthMs: Number(len[1]) })
   log('INFO', `Base: ${line}`)
   if (line === 'show ended') store.showEnded()
 }
 
 function onBaseClosed(unexpected: boolean) {
-  useCostumeStore.setState({ baseConnected: false, baseKind: null, baseDriftMs: null })
+  useCostumeStore.setState({ baseConnected: false, baseKind: null, baseDriftMs: null, baseShowLengthMs: null })
   log(
     unexpected ? 'ERROR' : 'INFO',
     unexpected
@@ -111,6 +115,7 @@ export const useCostumeStore = create<CostumeState>((set, get) => ({
   baseKind: null,
   musicSync: true,
   baseDriftMs: null,
+  baseShowLengthMs: null,
   armed: false,
   running: false,
   beaconsOn: true,
@@ -145,7 +150,9 @@ export const useCostumeStore = create<CostumeState>((set, get) => ({
       await base.connect(onBaseLine, onBaseClosed, port)
       // Opening the port resets the Nano, so the base starts fresh: idle, beacons on.
       if (get().running) log('WARN', 'Base station restarted: its show clock was reset. Costumes keep their own clock')
-      set({ baseConnected: true, baseKind: 'usb', beaconsOn: true, armed: false, running: false, baseDriftMs: null })
+      set({ baseConnected: true, baseKind: 'usb', beaconsOn: true, armed: false, running: false, baseDriftMs: null, baseShowLengthMs: null })
+      // Opening the port resets the Nano; ask for its show length once it has booted.
+      setTimeout(() => void sendToBase('STATUS'), 2500)
       log('SYNC', `Base station connected (USB${port ? ', automatic' : ''})`)
     } catch (e) {
       const msg = (e as Error).message
@@ -159,7 +166,8 @@ export const useCostumeStore = create<CostumeState>((set, get) => ({
     if (base.isConnected()) return
     base = new SimulatedBase({ showLengthMs: () => useShowStore.getState().project.lengthMs })
     await base.connect(onBaseLine, onBaseClosed)
-    set({ baseConnected: true, baseKind: 'simulator', beaconsOn: true, armed: false, running: false, baseDriftMs: null })
+    set({ baseConnected: true, baseKind: 'simulator', beaconsOn: true, armed: false, running: false, baseDriftMs: null, baseShowLengthMs: null })
+    void sendToBase('STATUS')
     log('SYNC', 'Simulated base station connected (no hardware). Its clock runs 0.2 % fast on purpose')
   },
 
