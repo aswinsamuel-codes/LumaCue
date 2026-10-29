@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { ALL_DANCERS, isShowProject, makeId, starterProject } from '@/lib/show/model'
+import { ALL_DANCERS, makeId, parseShowProject, starterProject } from '@/lib/show/model'
 import type { Clip, EffectId, ShowProject } from '@/lib/show/model'
 
 const STORAGE_KEY = 'lumacue.show.v1'
@@ -8,8 +8,9 @@ const HISTORY_LIMIT = 100
 function loadSaved(): ShowProject {
   try {
     const raw = typeof window !== 'undefined' ? window.localStorage.getItem(STORAGE_KEY) : null
-    const parsed = raw ? JSON.parse(raw) : null
-    if (isShowProject(parsed)) return parsed
+    // Repaired the same way as an opened file, so one bad save can't crash every reload.
+    const parsed = raw ? parseShowProject(JSON.parse(raw)) : null
+    if (parsed?.ok) return parsed.project
   } catch {
     // Private window or blocked storage: start fresh.
   }

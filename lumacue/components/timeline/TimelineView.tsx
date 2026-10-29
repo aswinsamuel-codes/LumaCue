@@ -7,7 +7,7 @@ import Inspector from '@/components/timeline/Inspector'
 import CostumeSetup from '@/components/timeline/CostumeSetup'
 import AutoCueDialog from '@/components/timeline/AutoCueDialog'
 import { buildLayout } from '@/lib/show/body'
-import { ALL_DANCERS, formatShowTime, isShowProject } from '@/lib/show/model'
+import { ALL_DANCERS, formatShowTime, parseShowProject } from '@/lib/show/model'
 import { useShowPlayback } from '@/lib/show/playback'
 import { exportArduinoShow } from '@/lib/show/arduino-export'
 import { buildFirmware } from '@/lib/show/firmware-bundle'
@@ -86,11 +86,14 @@ export default function TimelineView({ active }: { active: boolean }) {
 
   const importJson = async (file: File) => {
     try {
-      const parsed = JSON.parse(await file.text())
-      if (!isShowProject(parsed)) throw new Error('not a LumaCue show')
-      replaceProject(parsed)
+      let json: unknown
+      try { json = JSON.parse(await file.text()) } catch { throw new Error('the file is damaged or is not a show file (not valid JSON)') }
+      const result = parseShowProject(json)
+      if (!result.ok) throw new Error(result.error)
+      replaceProject(result.project)
       pb.seek(0)
       addLog('INFO', `Show · opened ${file.name}`)
+      for (const w of result.warnings) addLog('WARN', `Show · ${file.name}: ${w}`)
     } catch (e) {
       addLog('ERROR', `Show · could not open ${file.name}: ${(e as Error).message}`)
     }
