@@ -70,7 +70,7 @@ const Cue SHOW[] PROGMEM = {
   { 26000,  2000, ZALL, FX_FLASH, 255,   0, 0,  250 },  // fast red flash
   // 28000-30000 dark, then the show ends
 };
-const uint8_t NUM_CUES = sizeof(SHOW) / sizeof(SHOW[0]);
+const uint16_t NUM_CUES = sizeof(SHOW) / sizeof(SHOW[0]);  // uint16: LumaCue exports can exceed 255 cues
 
 // ---- State ----
 enum State : uint8_t { ST_IDLE, ST_ARMED, ST_RUNNING, ST_DONE };
@@ -135,7 +135,7 @@ void render() {
   if (state == ST_RUNNING) {
     uint32_t t = millis() - showStartMillis;
     Cue c;
-    for (uint8_t n = 0; n < NUM_CUES; n++) {
+    for (uint16_t n = 0; n < NUM_CUES; n++) {
       memcpy_P(&c, &SHOW[n], sizeof(Cue));
       if (t >= c.startMs && t < c.startMs + c.durationMs) applyCue(c, t);
     }
