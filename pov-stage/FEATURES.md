@@ -1,4 +1,4 @@
-# POV.STAGE - Feature Ideas & Roadmap
+# LumaCue - Feature Ideas & Roadmap
 
 ## ✅ Implemented Features
 - Zone control (ON/OFF, modes, speed)

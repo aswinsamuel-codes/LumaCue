@@ -1,6 +1,6 @@
 /**
  * WebSocket client for hardware communication
- * Connects POV.STAGE dashboard to Raspberry Pi hardware controller
+ * Connects LumaCue dashboard to Raspberry Pi hardware controller
  */
 
 export type WSCommand = {

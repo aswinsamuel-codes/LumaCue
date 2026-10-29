@@ -117,7 +117,7 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
   ],
   logs: [
     { id: makeId(), time: timestamp(), type: 'INFO', message: 'System initialized' },
-    { id: makeId(), time: timestamp(), type: 'INFO', message: 'Connected to POV.STAGE controller' },
+    { id: makeId(), time: timestamp(), type: 'INFO', message: 'Connected to LumaCue controller' },
   ],
 
   setConnected: (v) => set({ connected: v }),

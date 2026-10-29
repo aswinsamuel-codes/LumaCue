@@ -35,7 +35,7 @@ class MockHardwareServer {
       this.send(ws, {
         type: 'connection',
         status: 'connected',
-        message: 'Connected to POV.STAGE mock hardware (Windows)',
+        message: 'Connected to LumaCue mock hardware (Windows)',
         timestamp: new Date().toISOString()
       });
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * POV.STAGE Hardware Integration Server
+ * LumaCue Hardware Integration Server
  * WebSocket server for Raspberry Pi GPIO control
  * Controls IR transmitters for lighting zones
  */
@@ -61,7 +61,7 @@ class HardwareServer {
       this.sendToClient(ws, {
         type: 'connection',
         status: 'connected',
-        message: 'Connected to POV.STAGE hardware controller',
+        message: 'Connected to LumaCue hardware controller',
         timestamp: new Date().toISOString()
       });
 

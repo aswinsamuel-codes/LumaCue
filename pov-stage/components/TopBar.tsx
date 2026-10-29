@@ -21,16 +21,17 @@ export default function TopBar() {
       <div className="flex items-center gap-3">
         <div className="relative">
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 flex items-center justify-center">
-            <span className="text-white font-black text-xs">P</span>
+            <span className="text-white font-black text-xs">L</span>
           </div>
           <div className="absolute inset-0 rounded-lg bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 blur-md opacity-40 -z-10" />
         </div>
         <div>
-          <span className="text-white font-bold text-sm tracking-widest">POV</span>
-          <span className="text-white/40 font-light text-sm">.STAGE</span>
+          <span className="text-white font-bold text-sm tracking-widest">Luma</span>
+          <span className="text-white/40 font-light text-sm">Cue</span>
         </div>
         <div className="h-4 w-px bg-white/10 mx-1" />
-        <span className="text-white/20 text-xs font-mono tracking-wider">LIGHTING CONTROL v1.0</span>
+        <span className="text-white/20 text-xs font-mono tracking-wider">LED SHOW CONTROL v1.0</span>
+        <span className="text-white/30 text-xs font-mono tracking-wider">· Powered by Aswin Samuel</span>
       </div>
       <div className="flex items-center gap-4">
         <button

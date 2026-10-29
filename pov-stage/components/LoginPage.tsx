@@ -32,14 +32,14 @@ export default function LoginPage() {
         <div className="flex flex-col items-center mb-8">
           <div className="relative mb-4">
             <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 flex items-center justify-center">
-              <span className="text-white font-black text-3xl">P</span>
+              <span className="text-white font-black text-3xl">L</span>
             </div>
             <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 blur-xl opacity-50 -z-10" />
           </div>
           <h1 className="text-white text-3xl font-bold tracking-widest mb-1">
-            POV<span className="text-white/40">.STAGE</span>
+            Luma<span className="text-white/40">Cue</span>
           </h1>
-          <p className="text-white/30 text-sm font-mono tracking-wider">LIGHTING CONTROL SYSTEM</p>
+          <p className="text-white/30 text-sm font-mono tracking-wider">LED DANCE SHOW CONTROL</p>
         </div>
 
         {/* Login form */}
@@ -69,7 +69,8 @@ export default function LoginPage() {
 
         {/* Footer */}
         <div className="mt-8 text-center">
-          <p className="text-white/10 text-xs font-mono">v1.0.0 • Secure Access</p>
+          <p className="text-white/30 text-xs font-mono tracking-wider">Powered by Aswin Samuel</p>
+          <p className="text-white/10 text-xs font-mono mt-1">v1.0.0 • Secure Access</p>
         </div>
       </div>
     </div>

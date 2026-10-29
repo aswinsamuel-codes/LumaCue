@@ -1,7 +1,7 @@
 {
   "name": "pov-stage-hardware",
   "version": "1.0.0",
-  "description": "Hardware integration layer for POV.STAGE - Raspberry Pi GPIO control",
+  "description": "Hardware integration layer for LumaCue - Raspberry Pi GPIO control",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -9,7 +9,7 @@
     "test": "node mock-server.js"
   },
   "keywords": ["raspberry-pi", "gpio", "websocket", "ir-transmitter", "lighting"],
-  "author": "POV.STAGE",
+  "author": "Aswin Samuel",
   "license": "MIT",
   "dependencies": {
     "ws": "^8.16.0",

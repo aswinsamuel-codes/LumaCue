@@ -55,7 +55,7 @@ export default function LogPanel() {
       {/* Footer */}
       <div className="px-4 py-2 border-t border-white/5 bg-black/40 flex items-center gap-2">
         <span className="text-green-400 font-mono text-xs">▶</span>
-        <span className="text-white/20 font-mono text-xs">pov.stage ~ ready</span>
+        <span className="text-white/20 font-mono text-xs">lumacue ~ ready</span>
         <span className="w-1.5 h-3 bg-white/40 animate-pulse ml-0.5" />
       </div>
     </div>

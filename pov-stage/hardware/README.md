@@ -1,4 +1,4 @@
-# POV.STAGE Hardware Integration
+# LumaCue Hardware Integration
 
 WebSocket server for Raspberry Pi GPIO control of IR transmitters.
 
@@ -76,7 +76,7 @@ sudo nano /etc/systemd/system/pov-stage-hardware.service
 Add:
 ```ini
 [Unit]
-Description=POV.STAGE Hardware Controller
+Description=LumaCue Hardware Controller
 After=network.target pigpiod.service
 
 [Service]

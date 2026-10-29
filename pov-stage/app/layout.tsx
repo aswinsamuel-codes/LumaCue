@@ -2,8 +2,8 @@ import type { Metadata } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'POV.STAGE — Lighting Control',
-  description: 'Premium event lighting control dashboard',
+  title: 'LumaCue — Lighting Control',
+  description: 'LED dance show control — powered by Aswin Samuel',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
