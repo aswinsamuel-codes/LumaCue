@@ -11,6 +11,9 @@ import { ALL_DANCERS } from '@/lib/show/model'
 import type { Clip, ShowProject } from '@/lib/show/model'
 import { frameMilliamps, renderDancer, speedHz } from '@/lib/show/render'
 
+/** A 5 mm bench costume: three bi-colour LEDs switched on/off, ~20 mA per die. */
+export const FIVE_MM_MAX_MA = 120
+
 export interface ShowPower {
   avgMa: number
   peakMa: number
@@ -61,11 +64,14 @@ export function showPower(project: ShowProject, layout: CostumeLayout, dancer: n
  * a pulse half a period in.
  */
 function brightestMoments(c: Clip): number[] {
-  if (c.durationMs <= 2) return []
-  const start = c.startMs + 1, end = c.startMs + c.durationMs - 1
+  if (c.durationMs <= 0) return []
+  const start = c.startMs + Math.min(1, c.durationMs / 2), end = c.startMs + Math.max(0, c.durationMs - 1)
   if (c.effect === 'pulse') {
-    const firstPeak = c.startMs + 1000 / speedHz(c.speed)
-    return [firstPeak < end ? firstPeak : end]
+    // Crests every 2/hz s, starting 1/hz s in (a few dozen at most; the show-end filter drops the rest).
+    const crest = 1000 / speedHz(c.speed)
+    const times: number[] = []
+    for (let t = c.startMs + crest; t < c.startMs + c.durationMs && times.length < 64; t += 2 * crest) times.push(t)
+    return times.length ? times : [end]
   }
   return [start, end]
 }
@@ -83,9 +89,15 @@ export interface PowerSummary {
   highestPeak: { dancer: number; power: ShowPower }
 }
 
-/** Every dancer at 100 % brightness; scale with scaleSummary(). */
-export function powerSummary(project: ShowProject, layout: CostumeLayout, stepMs = 100): PowerSummary {
-  const all = Array.from({ length: Math.max(1, project.dancers) }, (_, d) => ({ dancer: d, power: showPower(project, layout, d, 100, stepMs) }))
+/**
+ * Every strip dancer at 100 % brightness; scale with scaleSummary(). Dancers
+ * in skip (5 mm builds) are left out. Null when there is no strip dancer.
+ */
+export function powerSummary(project: ShowProject, layout: CostumeLayout, stepMs = 100, skip: ReadonlySet<number> = new Set()): PowerSummary | null {
+  const all = Array.from({ length: project.dancers }, (_, d) => d)
+    .filter((d) => !skip.has(d))
+    .map((d) => ({ dancer: d, power: showPower(project, layout, d, 100, stepMs) }))
+  if (!all.length) return null
   const pick = (better: (a: ShowPower, b: ShowPower) => boolean) => all.reduce((best, x) => (better(x.power, best.power) ? x : best))
   return { busiest: pick((a, b) => a.avgMa > b.avgMa), highestPeak: pick((a, b) => a.peakMa > b.peakMa) }
 }

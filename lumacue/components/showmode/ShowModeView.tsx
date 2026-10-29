@@ -32,9 +32,18 @@ export default function ShowModeView({ active = true }: { active?: boolean }) {
   // Real-show power for the checklist, only while this tab is showing (it renders every dancer's whole
   // show). Worked out at 100 % and scaled, so moving the brightness cap doesn't re-render anything.
   // Costumes flashed with the 5 mm build don't use the strip's power figures.
+  // Dancers whose up-to-date firmware is the 5 mm build don't follow the strip power model.
   const records = useFirmwareStore((s) => s.byDancer)
-  const fiveMm = project.dancers > 0 && Array.from({ length: project.dancers }, (_, d) => records[d]?.output === '5mm').every(Boolean)
-  const power100 = useMemo(() => (active && !fiveMm ? powerSummary(project, layout, 250) : null), [active, fiveMm, project, layout])
+  const fiveMm = useMemo(
+    () => new Set(firmware.filter((f) => f.state === 'ok' && records[f.dancer]?.output === '5mm').map((f) => f.dancer)),
+    [firmware, records],
+  )
+  // Keyed on which dancers, not on the Set object, so playback re-renders don't redo the power pass.
+  const fiveMmKey = [...fiveMm].join(',')
+  const power100 = useMemo(
+    () => (active ? powerSummary(project, layout, 250, new Set(fiveMmKey ? fiveMmKey.split(',').map(Number) : [])) : null),
+    [active, project, layout, fiveMmKey],
+  )
   const showPower = useMemo(() => {
     if (!power100) return null
     const s = scaleSummary(power100, brightness)
@@ -46,7 +55,7 @@ export default function ShowModeView({ active = true }: { active?: boolean }) {
     firmware: firmware.map((f) => f.state),
     showAudioName: project.audioName, loadedAudioName: pb.audio?.name ?? null,
     musicSync, speakerDelayMs,
-    worstCaseMa: worstCaseMilliamps(layout.total, brightness), showPower, currentLimitMa: CURRENT_LIMIT_MA, fiveMm,
+    worstCaseMa: worstCaseMilliamps(layout.total, brightness), showPower, currentLimitMa: CURRENT_LIMIT_MA, fiveMmCount: fiveMm.size, dancers: project.dancers,
   })
   const toFix = checklist.filter((c) => c.level === 'fail').length
 

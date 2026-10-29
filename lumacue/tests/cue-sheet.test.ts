@@ -28,7 +28,7 @@ describe('cue sheet', () => {
     expect(row).toContain(`"'=HYPERLINK(""x"")"`)
     expect(row).toContain(`'+Arms`)
     const plain = cueSheetCsv(project([clip({})], { sections: [{ id: 's', name: '-- Finale --', startMs: 0, endMs: 5000, darkZones: [] }] }), []).split('\r\n')[2]
-    expect(plain).toContain(',-- Finale --,')
+    expect(plain).toContain(",'-- Finale --,")
   })
 
   it('leaves out clips on hidden dancer tracks and after the end', () => {

@@ -12,8 +12,9 @@ export interface CueSheetZone {
 
 const csvCell = (v: string | number) => {
   let s = String(v)
-  // Names that would run as formulas in Excel / Sheets (=…, +…, @…, -1…, -A1, -SUM(…)) stay text.
-  if (/^[=+@\t\r]/.test(s) || /^-[\d.(=+@]|^-[A-Za-z]+\d|^-[A-Za-z]+\(/.test(s)) s = `'${s}`
+  // Anything starting like a formula (= + - @ |, tab, CR) is kept as text: spreadsheet apps
+  // run such cells (incl. DDE payloads). Names like "-- Finale --" get a leading ' too.
+  if (/^[=+\-@|\t\r]/.test(s)) s = `'${s}`
   return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
 }
 

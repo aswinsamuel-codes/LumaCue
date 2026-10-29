@@ -24,11 +24,14 @@ export interface ChecklistInput {
   /** Real-show figures across every dancer, when worked out (Show Mode visible). */
   showPower?: { peakDancer: number; peakMa: number; peakAtMs: number; busiestDancer: number; busiestAvgMa: number } | null
   currentLimitMa: number
-  /** Every costume's firmware is the 5 mm build (on/off bi-colour LEDs, a few dozen mA). */
-  fiveMm?: boolean
+  /** Costumes whose current firmware is the 5 mm build (on/off LEDs, at most FIVE_MM_MAX_MA). */
+  fiveMmCount?: number
+  dancers?: number
 }
 
 const fmt = (ms: number) => `${Math.floor(ms / 60000)}:${((ms % 60000) / 1000).toFixed(1).padStart(4, '0')}`
+
+import { FIVE_MM_MAX_MA } from '@/lib/show/power'
 
 export function showChecklist(i: ChecklistInput): CheckItem[] {
   const items: CheckItem[] = []
@@ -71,8 +74,8 @@ export function showChecklist(i: ChecklistInput): CheckItem[] {
       : { id: 'speaker', level: 'warn', text: 'Speaker delay 0 ms: measure it at the venue if the sound goes through a mixer, wireless or Bluetooth' },
   )
 
-  if (i.fiveMm) {
-    items.push({ id: 'power', level: 'ok', text: 'Power: 5 mm LED costumes draw at most ~120 mA' })
+  if (i.fiveMmCount && i.dancers && i.fiveMmCount >= i.dancers) {
+    items.push({ id: 'power', level: 'ok', text: `Power: 5 mm LED costumes draw at most ~${FIVE_MM_MAX_MA} mA` })
     return items
   }
   const p = i.showPower

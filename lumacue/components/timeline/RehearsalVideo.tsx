@@ -36,14 +36,14 @@ export default function RehearsalVideo({ timeMs, playing, onClose }: { timeMs: n
     <div className="absolute bottom-2 right-2 z-10 w-[28%] min-w-[220px] rounded-lg border border-white/15 bg-black/80 p-1.5 shadow-xl">
       {src ? (
         <>
-          <video ref={video} src={src.url} muted playsInline className={`w-full rounded ${outside ? 'opacity-30' : ''}`} onLoadedMetadata={(e) => setDurationSec(Number.isFinite(e.currentTarget.duration) ? e.currentTarget.duration : 0)} />
+          <video ref={video} src={src.url} muted playsInline className={`w-full rounded ${outside ? 'opacity-30' : ''}`} onLoadedMetadata={(e) => setDurationSec(e.currentTarget.duration > 0 ? e.currentTarget.duration : 0)} onDurationChange={(e) => setDurationSec(e.currentTarget.duration > 0 ? e.currentTarget.duration : 0)} />
           <div className="mt-1 flex flex-wrap items-center gap-1">
             <span className="text-white/40 text-[10px] font-mono mr-auto truncate max-w-[45%]" title={src.name}>🎥 {src.name}</span>
-            <button className={btn} onClick={() => nudge(-100)} title="Video 100 ms earlier">«</button>
-            <button className={btn} onClick={() => nudge(-33)} title="Video one frame earlier (30 fps)">‹</button>
+            <button className={btn} onClick={() => nudge(-100)} title="The filmed moves come 100 ms later against the show">«</button>
+            <button className={btn} onClick={() => nudge(-33)} title="The filmed moves come one frame (30 fps) later">‹</button>
             <span className="text-white/60 text-[10px] font-mono tabular-nums" title="Where the show's 0:00 is in the video">{offsetMs >= 0 ? '+' : ''}{(offsetMs / 1000).toFixed(2)} s</span>
-            <button className={btn} onClick={() => nudge(33)} title="Video one frame later (30 fps)">›</button>
-            <button className={btn} onClick={() => nudge(100)} title="Video 100 ms later">»</button>
+            <button className={btn} onClick={() => nudge(33)} title="The filmed moves come one frame (30 fps) sooner">›</button>
+            <button className={btn} onClick={() => nudge(100)} title="The filmed moves come 100 ms sooner against the show">»</button>
             <button className={btn} onClick={() => input.current?.click()} title="Load another video">↻</button>
             <button className={btn} onClick={onClose} title="Close the video">✕</button>
           </div>

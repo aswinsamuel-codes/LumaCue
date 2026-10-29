@@ -32,9 +32,20 @@ describe('show power', () => {
       clip({ track: 0, durationMs: 10000, color: '#808080' }),            // steady medium all show
       clip({ track: 1, startMs: 4000, durationMs: 300, color: '#FFFFFF' }), // one short full-white hit
     ], { dancers: 2 })
-    const s = powerSummary(p, layout, 100)
+    const s = powerSummary(p, layout, 100)!
     expect(s.busiest.dancer).toBe(0)
     expect(s.highestPeak.dancer).toBe(1)
+    // a 5 mm dancer is left out of the strip figures
+    expect(powerSummary(p, layout, 100, new Set([1]))!.highestPeak.dancer).toBe(0)
+    expect(powerSummary(p, layout, 100, new Set([0, 1]))).toBeNull()
+  })
+
+  it('probes every pulse crest and very short flashes', () => {
+    // 0.25 Hz pulse starting 6 s before the end: its first crest (4 s in) is inside the show
+    const late = project([clip({ effect: 'pulse', speed: 0, startMs: 4000, durationMs: 6000, color: '#FFFFFF' })], { lengthMs: 10000 })
+    expect(showPower(late, layout, 0, 100, 5000).peakMa).toBeCloseTo(30 * 60, 0)
+    const blip = project([clip({ startMs: 3333, durationMs: 2, color: '#FFFFFF' })], { lengthMs: 10000 })
+    expect(showPower(blip, layout, 0, 100, 1000).peakMa).toBeCloseTo(30 * 60, 0)
   })
 
   it('finds the peak of a slow pulse and the end of a wipe, between grid points', () => {
@@ -48,7 +59,7 @@ describe('show power', () => {
     // all dark except a full-white blip in the final 50 ms
     const p = project([clip({ startMs: 10000, durationMs: 50, color: '#FFFFFF' })], { lengthMs: 10050 })
     expect(showPower(p, layout, 0, 100, 250).avgMa).toBeLessThan(30 * 60 * 0.01)
-    expect(() => powerSummary(project([], { dancers: 0 }), layout)).not.toThrow()
+    expect(powerSummary(project([], { dancers: 0 }), layout)).toBeNull()
   })
 
   it('estimates power-bank runtime with the controller included', () => {

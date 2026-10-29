@@ -44,7 +44,7 @@ describe('showChecklist power from the real show', () => {
     expect(hot.text).toMatch(/1:23.0/)
   })
   it('does not apply strip power figures to 5 mm costumes', () => {
-    const p = showChecklist({ ...ready, worstCaseMa: 2900, fiveMm: true }).find((c) => c.id === 'power')!
+    const p = showChecklist({ ...ready, worstCaseMa: 2900, fiveMmCount: 3, dancers: 3 }).find((c) => c.id === 'power')!
     expect(p.level).toBe('ok')
     expect(p.text).toMatch(/5 mm/)
   })

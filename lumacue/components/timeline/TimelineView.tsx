@@ -19,7 +19,7 @@ import { makeZip } from '@/lib/zip'
 import { benchFidelity, benchFingerprint, compileBenchCues, CUE_BUDGET } from '@/lib/show/bench'
 import type { BenchOutput } from '@/lib/show/bench'
 import { renderDancer } from '@/lib/show/render'
-import { runtimeHours, scalePower, showPower } from '@/lib/show/power'
+import { FIVE_MM_MAX_MA, runtimeHours, scalePower, showPower } from '@/lib/show/power'
 import { CURRENT_LIMIT_MA } from '@/lib/show/checklist'
 import { downloadBlob, safeFileName } from '@/lib/download'
 import { useFirmwareStore } from '@/store/useFirmwareStore'
@@ -346,7 +346,7 @@ export default function TimelineView({ active }: { active: boolean }) {
                     {preflight.cues} cues (fits ≈ {CUE_BUDGET})
                   </span>
                   {arduino.output === '5mm' ? (
-                    <span className="text-white/50" title="Three bi-colour LEDs, each die about 20 mA when on. They are switched on or off, so the brightness cap doesn't apply">Power: 5 mm LEDs draw at most ~120 mA (on/off, no brightness cap)</span>
+                    <span className="text-white/50" title="Three bi-colour LEDs, each die about 20 mA when on. They are switched on or off, so the brightness cap doesn't apply">Power: 5 mm LEDs draw at most ~{FIVE_MM_MAX_MA} mA (on/off, no brightness cap)</span>
                   ) : power && (
                     <span className={power.peakMa > CURRENT_LIMIT_MA ? 'text-yellow-300' : 'text-white/50'} title="From the preview's LED colours at the brightness cap (planning figure: ~20 mA per colour channel). The bank runtime assumes 60 % of its label is usable and ~100 mA for the controller">
                       Power: avg {Math.round(power.avgMa)} mA · peak {Math.round(power.peakMa)} mA at {formatShowTime(power.peakAtMs)} · {power.mAh.toFixed(0)} mAh per run · 5,000 mAh bank ≈ {runtimeHours(power.avgMa, 5000).toFixed(1)} h
