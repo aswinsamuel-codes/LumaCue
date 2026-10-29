@@ -10,7 +10,7 @@ import { FIRMWARE_SHOW_ID, useCostumeStore } from '@/store/useCostumeStore'
 import { useShowStore } from '@/store/useShowStore'
 import { useFirmwareStatus } from '@/lib/show/use-firmware-status'
 import { CURRENT_LIMIT_MA, showChecklist, worstCaseMilliamps } from '@/lib/show/checklist'
-import { busiestDancer } from '@/lib/show/power'
+import { powerSummary, scaleSummary } from '@/lib/show/power'
 
 /**
  * Show Mode: runs the show on the night. Nothing here edits the show, so a
@@ -28,19 +28,21 @@ export default function ShowModeView({ active = true }: { active?: boolean }) {
   // Which costumes carry the show as it is now (by the last firmware download for each dancer).
   const { perDancer: firmware, toUpdate: staleCount } = useFirmwareStatus()
 
-  // Real-show power for the checklist; only while this tab is showing (it renders every dancer's whole show).
-  const showPeak = useMemo(() => {
-    if (!active) return null
-    const { dancer, power } = busiestDancer(project, layout, brightness, 250)
-    return { dancer, ...power }
-  }, [active, project, layout, brightness])
+  // Real-show power for the checklist, only while this tab is showing (it renders every dancer's whole
+  // show). Worked out at 100 % and scaled, so moving the brightness cap doesn't re-render anything.
+  const power100 = useMemo(() => (active ? powerSummary(project, layout, 250) : null), [active, project, layout])
+  const showPower = useMemo(() => {
+    if (!power100) return null
+    const s = scaleSummary(power100, brightness)
+    return { peakDancer: s.highestPeak.dancer, peakMa: s.highestPeak.power.peakMa, peakAtMs: s.highestPeak.power.peakAtMs, busiestDancer: s.busiest.dancer, busiestAvgMa: s.busiest.power.avgMa }
+  }, [power100, brightness])
 
   const checklist = showChecklist({
     baseKind, baseShowLengthMs, showLengthMs: project.lengthMs,
     firmware: firmware.map((f) => f.state),
     showAudioName: project.audioName, loadedAudioName: pb.audio?.name ?? null,
     musicSync, speakerDelayMs,
-    worstCaseMa: worstCaseMilliamps(layout.total, brightness), showPeak, currentLimitMa: CURRENT_LIMIT_MA,
+    worstCaseMa: worstCaseMilliamps(layout.total, brightness), showPower, currentLimitMa: CURRENT_LIMIT_MA,
   })
   const toFix = checklist.filter((c) => c.level === 'fail').length
 

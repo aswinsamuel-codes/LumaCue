@@ -34,11 +34,12 @@ describe('showChecklist', () => {
 
 describe('showChecklist power from the real show', () => {
   it('uses the busiest costume when known', () => {
-    const items = showChecklist({ ...ready, worstCaseMa: 2900, showPeak: { dancer: 2, peakMa: 640, peakAtMs: 83000, avgMa: 310 } })
+    const items = showChecklist({ ...ready, worstCaseMa: 2900, showPower: { peakDancer: 2, peakMa: 640, peakAtMs: 83000, busiestDancer: 1, busiestAvgMa: 310 } })
     const p = items.find((c) => c.id === 'power')!
     expect(p.level).toBe('ok')
     expect(p.text).toMatch(/Dancer 3/)
-    const hot = showChecklist({ ...ready, showPeak: { dancer: 0, peakMa: 1400, peakAtMs: 83000, avgMa: 700 } }).find((c) => c.id === 'power')!
+    expect(p.text).toMatch(/full white would be ~2900 mA/)
+    const hot = showChecklist({ ...ready, showPower: { peakDancer: 0, peakMa: 1400, peakAtMs: 83000, busiestDancer: 1, busiestAvgMa: 700 } }).find((c) => c.id === 'power')!
     expect(hot.level).toBe('warn')
     expect(hot.text).toMatch(/1:23.0/)
   })

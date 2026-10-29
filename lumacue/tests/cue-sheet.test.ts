@@ -22,6 +22,13 @@ describe('cue sheet', () => {
     ])
   })
 
+  it('keeps names that look like formulas as text', () => {
+    const p = project([clip({ zones: ['z'] })], { sections: [{ id: 's', name: '=HYPERLINK("x")', startMs: 0, endMs: 5000, darkZones: [] }] })
+    const row = cueSheetCsv(p, [{ id: 'z', name: '+Arms' }]).split('\r\n')[2]
+    expect(row).toContain(`"'=HYPERLINK(""x"")"`)
+    expect(row).toContain(`'+Arms`)
+  })
+
   it('leaves out clips on hidden dancer tracks and after the end', () => {
     const p = project([clip({ track: 5 }), clip({ startMs: 20000 })], { dancers: 2, lengthMs: 10000 })
     expect(cueSheetCsv(p, []).trimEnd().split('\r\n')).toHaveLength(2)

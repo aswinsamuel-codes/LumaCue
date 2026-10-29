@@ -18,7 +18,9 @@ import { makeZip } from '@/lib/zip'
 import { benchFidelity, benchFingerprint, compileBenchCues, CUE_BUDGET } from '@/lib/show/bench'
 import type { BenchOutput } from '@/lib/show/bench'
 import { renderDancer } from '@/lib/show/render'
-import { runtimeHours, showPower } from '@/lib/show/power'
+import { runtimeHours, scalePower, showPower } from '@/lib/show/power'
+import { CURRENT_LIMIT_MA } from '@/lib/show/checklist'
+import { downloadBlob, safeFileName } from '@/lib/download'
 import { useFirmwareStore } from '@/store/useFirmwareStore'
 import { useFirmwareStatus } from '@/lib/show/use-firmware-status'
 import { useShowStore } from '@/store/useShowStore'
@@ -83,22 +85,12 @@ export default function TimelineView({ active }: { active: boolean }) {
   }
 
   const exportJson = () => {
-    const blob = new Blob([showFileJson(project, { zones, brightness })], { type: 'application/json' })
-    const a = document.createElement('a')
-    a.href = URL.createObjectURL(blob)
-    a.download = `${project.name.replace(/[^\w-]+/g, '_') || 'show'}.lumacue.json`
-    a.click()
-    URL.revokeObjectURL(a.href)
+    downloadBlob(new Blob([showFileJson(project, { zones, brightness })], { type: 'application/json' }), `${safeFileName(project.name)}.lumacue.json`)
   }
 
   // Printable list of what happens when, for rehearsals (opens in Excel / Sheets).
   const exportCueSheet = () => {
-    const blob = new Blob(['\uFEFF' + cueSheetCsv(project, zones)], { type: 'text/csv;charset=utf-8' })
-    const a = document.createElement('a')
-    a.href = URL.createObjectURL(blob)
-    a.download = `${project.name.replace(/[^\w-]+/g, '_') || 'show'}_cue_sheet.csv`
-    a.click()
-    URL.revokeObjectURL(a.href)
+    downloadBlob(new Blob(['\uFEFF' + cueSheetCsv(project, zones)], { type: 'text/csv;charset=utf-8' }), `${safeFileName(project.name)}_cue_sheet.csv`)
   }
 
   const importJson = async (file: File) => {
@@ -136,8 +128,13 @@ export default function TimelineView({ active }: { active: boolean }) {
         return [r / z.count, g / z.count, b / z.count] as [number, number, number]
       })
     }, 100, arduino.output, zones.map((z) => z.leds))
-    return { cues: cues.length, notes, fidelity, power: showPower(project, layout, arduino.dancer, brightness) }
-  }, [arduino, project, zoneIds, layout, zones, brightness])
+    return { cues: cues.length, notes, fidelity }
+  }, [arduino, project, zoneIds, layout, zones])
+
+  // Power for the strip build: at 100 % once per show edit, scaled to the brightness cap.
+  const dialogDancer = arduino?.dancer ?? null
+  const power100 = useMemo(() => (dialogDancer === null ? null : showPower(project, layout, dialogDancer)), [dialogDancer, project, layout])
+  const power = power100 && scalePower(power100, brightness)
 
   // Ready-to-upload sketches: the repo templates with this show, its length and the LED type filled in.
   const downloadFirmware = async (all: boolean) => {
@@ -151,12 +148,8 @@ export default function TimelineView({ active }: { active: boolean }) {
       const files = all
         ? buildFirmwareForAll(body as FirmwareTemplates, project, zoneIds, arduino.output, new Date(), strip, arduino.board)
         : buildFirmware(body as FirmwareTemplates, project, zoneIds, arduino.dancer, arduino.output, new Date(), strip, arduino.board)
-      const folder = `lumacue_${project.name.replace(/[^\w-]+/g, '_') || 'show'}_${arduino.board}_${all ? 'all_dancers' : `dancer${arduino.dancer + 1}`}`
-      const a = document.createElement('a')
-      a.href = URL.createObjectURL(makeZip(files.map((f) => ({ path: `${folder}/${f.path}`, text: f.text }))))
-      a.download = `${folder}.zip`
-      a.click()
-      URL.revokeObjectURL(a.href)
+      const folder = `lumacue_${safeFileName(project.name)}_${arduino.board}_${all ? 'all_dancers' : `dancer${arduino.dancer + 1}`}`
+      downloadBlob(makeZip(files.map((f) => ({ path: `${folder}/${f.path}`, text: f.text }))), `${folder}.zip`)
       for (const d of all ? Array.from({ length: project.dancers }, (_, i) => i) : [arduino.dancer]) {
         recordDownload(d, { fingerprint: benchFingerprint(project, zoneIds, d, { output: arduino.output, board: arduino.board, ...strip }), output: arduino.output, board: arduino.board, downloadedAt: Date.now() })
       }
@@ -348,9 +341,13 @@ export default function TimelineView({ active }: { active: boolean }) {
                   <span className={preflight.cues > CUE_BUDGET ? 'text-red-300' : 'text-white/50'}>
                     {preflight.cues} cues (fits ≈ {CUE_BUDGET})
                   </span>
-                  <span className={preflight.power.peakMa > 1000 ? 'text-yellow-300' : 'text-white/50'} title="From the preview's LED colours at the brightness cap (planning figure: ~20 mA per colour channel). The bank runtime assumes 60 % of its label is usable and ~100 mA for the controller">
-                    Power: avg {Math.round(preflight.power.avgMa)} mA · peak {Math.round(preflight.power.peakMa)} mA at {formatShowTime(preflight.power.peakAtMs)} · {preflight.power.mAh.toFixed(0)} mAh per run · 5,000 mAh bank ≈ {runtimeHours(preflight.power.avgMa, 5000).toFixed(1)} h
-                  </span>
+                  {arduino.output === '5mm' ? (
+                    <span className="text-white/50" title="Three bi-colour LEDs, each die about 20 mA when on">Power: 5 mm LEDs draw at most ~120 mA</span>
+                  ) : power && (
+                    <span className={power.peakMa > CURRENT_LIMIT_MA ? 'text-yellow-300' : 'text-white/50'} title="From the preview's LED colours at the brightness cap (planning figure: ~20 mA per colour channel). The bank runtime assumes 60 % of its label is usable and ~100 mA for the controller">
+                      Power: avg {Math.round(power.avgMa)} mA · peak {Math.round(power.peakMa)} mA at {formatShowTime(power.peakAtMs)} · {power.mAh.toFixed(0)} mAh per run · 5,000 mAh bank ≈ {runtimeHours(power.avgMa, 5000).toFixed(1)} h
+                    </span>
+                  )}
                   <button className="text-yellow-200/80 hover:text-yellow-100 underline-offset-2 hover:underline" onClick={() => { setCostumeView(arduino.output); setArduino(null) }}>
                     See it in Costume view →
                   </button>

@@ -11,7 +11,9 @@ export interface CueSheetZone {
 }
 
 const csvCell = (v: string | number) => {
-  const s = String(v)
+  let s = String(v)
+  // Names starting with = + - @ would run as formulas in Excel / Sheets: keep them as text.
+  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`
   return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
 }
 
@@ -30,7 +32,7 @@ export function cueSheetCsv(project: ShowProject, zones: CueSheetZone[]): string
         sectionAt(c.startMs),
         c.track === ALL_DANCERS ? 'All dancers' : `Dancer ${c.track + 1}`,
         effect?.label ?? c.effect,
-        c.effect === 'blackout' || c.effect === 'rainbow' ? '' : effect?.usesColor2 ? `${c.color} → ${c.color2}` : c.color,
+        effect?.noColor ? '' : effect?.usesColor2 ? `${c.color} → ${c.color2}` : c.color,
         c.zones.length ? c.zones.map((z) => zoneName.get(z) ?? z).join(' + ') : 'Whole costume',
       ]
     })

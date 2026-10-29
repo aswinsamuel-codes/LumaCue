@@ -65,6 +65,7 @@ export interface EffectInfo {
   short: string
   hint: string
   usesColor2?: boolean
+  noColor?: boolean    // the colour setting isn't used (blackout, rainbow)
   usesSpeed?: boolean
 }
 
@@ -75,9 +76,9 @@ export const EFFECTS: EffectInfo[] = [
   { id: 'strobe', label: 'Strobe', short: 'STR', hint: 'Hard on/off flashes', usesSpeed: true },
   { id: 'chase', label: 'Chase', short: 'CHS', hint: 'A light segment runs along the strip', usesSpeed: true },
   { id: 'wipe', label: 'Wipe', short: 'WIP', hint: 'Fills the strip from start to end over the clip' },
-  { id: 'rainbow', label: 'Rainbow', short: 'RBW', hint: 'Moving colour wheel', usesSpeed: true },
+  { id: 'rainbow', label: 'Rainbow', short: 'RBW', hint: 'Moving colour wheel', usesSpeed: true, noColor: true },
   { id: 'twinkle', label: 'Twinkle', short: 'TWK', hint: 'Random sparkles', usesSpeed: true },
-  { id: 'blackout', label: 'Blackout', short: 'OFF', hint: 'Forces LEDs dark (masks clips below)' },
+  { id: 'blackout', label: 'Blackout', short: 'OFF', hint: 'Forces LEDs dark (masks clips below)', noColor: true },
 ]
 
 export const EFFECT_BY_ID = Object.fromEntries(EFFECTS.map((e) => [e.id, e])) as Record<EffectId, EffectInfo>
