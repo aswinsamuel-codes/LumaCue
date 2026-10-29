@@ -4,11 +4,14 @@ import type { BaseCommand, SerialPortLike } from '@/lib/base-station-serial'
 import { DEMO_SHOW } from '@/lib/costume-show'
 import { useDashboardStore } from '@/store/useDashboardStore'
 import type { LogType } from '@/store/useDashboardStore'
+import { PLACEMENTS } from '@/lib/show/body'
+import type { Placement } from '@/lib/show/body'
 
 export interface CostumeZone {
   id: string
   name: string
   leds: number
+  placement: Placement   // where the strip sits on the body (digital twin)
 }
 
 interface CostumeState {
@@ -56,9 +59,9 @@ async function sendToBase(command: BaseCommand) {
 export const useCostumeStore = create<CostumeState>((set, get) => ({
   // Matches the bench firmware: 3 zones × 20 LEDs (1 m of 60 LED/m)
   zones: [
-    { id: 'a', name: 'Zone A — arms', leds: 20 },
-    { id: 'b', name: 'Zone B — chest', leds: 20 },
-    { id: 'c', name: 'Zone C — legs', leds: 20 },
+    { id: 'a', name: 'Zone A — arms', leds: 20, placement: 'arms' },
+    { id: 'b', name: 'Zone B — chest', leds: 20, placement: 'chest' },
+    { id: 'c', name: 'Zone C — legs', leds: 20, placement: 'legs' },
   ],
   brightness: 25,
   baseConnected: false,
@@ -68,7 +71,9 @@ export const useCostumeStore = create<CostumeState>((set, get) => ({
   beaconsOn: true,
 
   addZone: (name, leds) => {
-    set((s) => ({ zones: [...s.zones, { id: makeId(), name, leds }] }))
+    const used = new Set(get().zones.map((z) => z.placement))
+    const placement = PLACEMENTS.find((pl) => !used.has(pl.id))?.id ?? 'belt'
+    set((s) => ({ zones: [...s.zones, { id: makeId(), name, leds, placement }] }))
     log('ACTION', `${name} added (${leds} LEDs)`)
   },
 

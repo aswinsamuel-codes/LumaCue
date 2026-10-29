@@ -1,6 +1,8 @@
 'use client'
 import { useState } from 'react'
 import { useCostumeStore } from '@/store/useCostumeStore'
+import { PLACEMENTS } from '@/lib/show/body'
+import type { Placement } from '@/lib/show/body'
 
 // Planning figures, not measurements: a WS2812B draws up to ~60 mA at full
 // white and roughly a third of that showing one colour.
@@ -39,6 +41,14 @@ export default function CostumeZones() {
                 onChange={(e) => updateZone(zone.id, { name: e.target.value })}
                 className="flex-1 min-w-0 bg-black/40 border border-white/10 rounded-md px-2 py-1.5 text-white text-xs focus:outline-none focus:border-purple-500/50"
               />
+              <select
+                value={zone.placement}
+                onChange={(e) => updateZone(zone.id, { placement: e.target.value as Placement })}
+                className="w-28 bg-black/40 border border-white/10 rounded-md px-1 py-1.5 text-white text-xs focus:outline-none focus:border-purple-500/50"
+                aria-label={`${zone.name} position on the body`}
+              >
+                {PLACEMENTS.map((pl) => <option key={pl.id} value={pl.id}>{pl.label}</option>)}
+              </select>
               <input
                 type="number"
                 min={1}

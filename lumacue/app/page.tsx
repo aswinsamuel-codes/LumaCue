@@ -10,6 +10,7 @@ import LoginPage from '@/components/LoginPage'
 import TabBar from '@/components/TabBar'
 import type { ShowTab } from '@/components/TabBar'
 import CostumeView from '@/components/costume/CostumeView'
+import TimelineView from '@/components/timeline/TimelineView'
 import { useDashboardStore } from '@/store/useDashboardStore'
 import { useCostumeStore } from '@/store/useCostumeStore'
 
@@ -54,7 +55,7 @@ export default function Home() {
 
       <main className="flex flex-1 gap-3 p-3 overflow-hidden relative">
         {/* LEFT PANEL */}
-        <div className="flex flex-col gap-3 flex-1 overflow-y-auto pr-1">
+        <div className={`flex flex-col gap-3 flex-1 min-w-0 pr-1 ${tab === 'timeline' ? 'overflow-hidden' : 'overflow-y-auto'}`}>
           {/* Both tabs stay mounted so a running preset or show keeps going when you switch */}
           <div role="tabpanel" className={tab === 'band' ? 'flex flex-col gap-3' : 'hidden'}>
             {/* Zone Cards */}
@@ -93,10 +94,13 @@ export default function Home() {
           <div role="tabpanel" className={tab === 'costume' ? 'flex flex-col gap-3' : 'hidden'}>
             <CostumeView />
           </div>
+          <div role="tabpanel" className={tab === 'timeline' ? 'flex flex-col flex-1 min-h-0' : 'hidden'}>
+            <TimelineView active={tab === 'timeline'} />
+          </div>
         </div>
 
         {/* RIGHT PANEL — Compact Log */}
-        <div className="flex flex-col w-80 shrink-0">
+        <div className={tab === 'timeline' ? 'hidden' : 'flex flex-col w-80 shrink-0'}>
           <p className="text-white/20 text-[10px] font-mono tracking-widest mb-2 px-1">SYSTEM LOG</p>
           <div className="flex-1 min-h-0">
             <LogPanel />

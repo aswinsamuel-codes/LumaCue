@@ -1,0 +1,178 @@
+'use client'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import StageCanvas from '@/components/timeline/StageCanvas'
+import Timeline from '@/components/timeline/Timeline'
+import Inspector from '@/components/timeline/Inspector'
+import { buildLayout } from '@/lib/show/body'
+import { ALL_DANCERS, isShowProject } from '@/lib/show/model'
+import { audioPeaks, usePlayback } from '@/lib/show/playback'
+import { exportArduinoShow } from '@/lib/show/arduino-export'
+import { formatShowTime } from '@/lib/costume-show'
+import { useShowStore } from '@/store/useShowStore'
+import { useCostumeStore } from '@/store/useCostumeStore'
+import { useDashboardStore } from '@/store/useDashboardStore'
+
+const btn = 'px-2.5 py-1.5 rounded-md border text-[11px] font-mono transition-all disabled:opacity-30'
+const btnIdle = `${btn} bg-white/5 border-white/10 text-white/60 hover:bg-white/10 hover:text-white`
+const btnOn = `${btn} bg-purple-500/25 border-purple-500/50 text-purple-100`
+
+export default function TimelineView({ active }: { active: boolean }) {
+  const { project, selectedClipId, selectedTrack, selectTrack, deleteClip, duplicateClip, undo, redo, past, future, setProject, replaceProject } = useShowStore()
+  const { zones, brightness } = useCostumeStore()
+  const addLog = useDashboardStore((s) => s.addLog)
+  const pb = usePlayback(project.lengthMs)
+
+  const layout = useMemo(() => buildLayout(zones), [zones])
+  const [pxPerSec, setPxPerSec] = useState(60)
+  const [snap, setSnap] = useState(true)
+  const [view, setView] = useState<'all' | 'single'>('all')
+  const [xray, setXray] = useState(false)
+  const [peaks, setPeaks] = useState<{ data: Float32Array; ms: number } | null>(null)
+  const [arduino, setArduino] = useState<{ dancer: number } | null>(null)
+  const audioInput = useRef<HTMLInputElement>(null)
+  const importInput = useRef<HTMLInputElement>(null)
+  const focusDancer = selectedTrack === ALL_DANCERS ? 0 : selectedTrack
+
+  // Keyboard shortcuts, only while this tab is showing and not typing in a field.
+  useEffect(() => {
+    if (!active) return
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement
+      if (el.closest('input, textarea, select')) return
+      const mod = e.ctrlKey || e.metaKey
+      if (e.code === 'Space') { e.preventDefault(); if (pb.playing) pb.pause(); else pb.play() }
+      else if ((e.key === 'Delete' || e.key === 'Backspace') && selectedClipId) { e.preventDefault(); deleteClip(selectedClipId) }
+      else if (mod && e.key.toLowerCase() === 'd' && selectedClipId) { e.preventDefault(); duplicateClip(selectedClipId) }
+      else if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); if (e.shiftKey) redo(); else undo() }
+      else if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); redo() }
+      else if (e.key === 'Home') { e.preventDefault(); pb.seek(0) }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [active, pb, selectedClipId, deleteClip, duplicateClip, undo, redo])
+
+  const loadAudio = async (file: File) => {
+    try {
+      const { peaks: data, durationMs } = await audioPeaks(file)
+      pb.setAudioFile(file)
+      setPeaks({ data, ms: durationMs })
+      setProject({ audioName: file.name, lengthMs: Math.ceil(durationMs) })
+      pb.seek(0)
+      addLog('INFO', `Show · music loaded: ${file.name} (${formatShowTime(durationMs)})`)
+    } catch {
+      addLog('ERROR', `Show · could not read ${file.name} as audio`)
+    }
+  }
+
+  const exportJson = () => {
+    const blob = new Blob([JSON.stringify(project, null, 2)], { type: 'application/json' })
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = `${project.name.replace(/[^\w-]+/g, '_') || 'show'}.lumacue.json`
+    a.click()
+    URL.revokeObjectURL(a.href)
+  }
+
+  const importJson = async (file: File) => {
+    try {
+      const parsed = JSON.parse(await file.text())
+      if (!isShowProject(parsed)) throw new Error('not a LumaCue show')
+      replaceProject(parsed)
+      pb.seek(0)
+      addLog('INFO', `Show · opened ${file.name}`)
+    } catch (e) {
+      addLog('ERROR', `Show · could not open ${file.name}: ${(e as Error).message}`)
+    }
+  }
+
+  const arduinoCode = arduino ? exportArduinoShow(project, zones.map((z) => z.id), arduino.dancer) : ''
+
+  return (
+    <div className="flex flex-col gap-3 h-full min-h-0">
+      {/* Digital twin + inspector */}
+      <div className="flex gap-3 h-[46%] min-h-[240px] shrink-0">
+        <div className="relative flex-1 min-w-0 rounded-xl border border-white/10 overflow-hidden">
+          <StageCanvas
+            project={project}
+            layout={layout}
+            timeMs={pb.timeMs}
+            view={view}
+            focusDancer={focusDancer}
+            brightness={brightness}
+            xray={xray}
+            onPickDancer={(d) => selectTrack(d)}
+          />
+          <div className="absolute top-2 right-2 flex gap-1">
+            <button className={view === 'all' ? btnOn : btnIdle} onClick={() => setView('all')}>All dancers</button>
+            <button className={view === 'single' ? btnOn : btnIdle} onClick={() => setView('single')}>Dancer {focusDancer + 1}</button>
+            <button className={xray ? btnOn : btnIdle} onClick={() => setXray(!xray)} title="Hide the body and show only the LED layout">X-ray</button>
+          </div>
+        </div>
+        <Inspector timeMs={pb.timeMs} audioLoaded={!!peaks} />
+      </div>
+
+      {/* Transport */}
+      <div className="flex flex-wrap items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-2 py-1.5 shrink-0">
+        <button className={btnIdle} onClick={() => pb.seek(0)} title="Go to start (Home)">⏮</button>
+        <button className={`${btn} bg-green-500/20 border-green-500/40 text-green-300 hover:bg-green-500/30 w-16`} onClick={() => (pb.playing ? pb.pause() : pb.play())} title="Play / pause (Space)">
+          {pb.playing ? '❚❚ Pause' : '▶ Play'}
+        </button>
+        <button className={pb.loop ? btnOn : btnIdle} onClick={() => pb.setLoop(!pb.loop)} title="Loop">⟲ Loop</button>
+        <span className="font-mono text-white text-sm tabular-nums px-2">{formatShowTime(pb.timeMs)}<span className="text-white/30"> / {formatShowTime(project.lengthMs)}</span></span>
+
+        <div className="h-5 w-px bg-white/10 mx-1" />
+        <span className="text-white/30 text-[10px] font-mono">ZOOM</span>
+        <input type="range" min={15} max={400} value={pxPerSec} onChange={(e) => setPxPerSec(Number(e.target.value))} className="w-24 accent-purple-500" aria-label="Timeline zoom" />
+        <button className={snap ? btnOn : btnIdle} onClick={() => setSnap(!snap)} title="Snap clips to 0.1 s">Snap</button>
+        <button className={btnIdle} onClick={undo} disabled={!past.length} title="Undo (Ctrl+Z)">↶</button>
+        <button className={btnIdle} onClick={redo} disabled={!future.length} title="Redo (Ctrl+Shift+Z)">↷</button>
+
+        <div className="h-5 w-px bg-white/10 mx-1" />
+        <button className={`${btn} bg-cyan-500/15 border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/25`} onClick={() => audioInput.current?.click()}>♪ {peaks ? 'Change music' : 'Load music'}</button>
+        <input ref={audioInput} type="file" accept="audio/*" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) void loadAudio(f); e.target.value = '' }} />
+
+        <div className="ml-auto flex gap-1.5">
+          <button className={btnIdle} onClick={() => importInput.current?.click()}>Open</button>
+          <input ref={importInput} type="file" accept=".json,application/json" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) void importJson(f); e.target.value = '' }} />
+          <button className={btnIdle} onClick={exportJson}>Save file</button>
+          <button className={`${btn} bg-yellow-500/15 border-yellow-500/30 text-yellow-200 hover:bg-yellow-500/25`} onClick={() => setArduino({ dancer: focusDancer })}>→ Costume firmware</button>
+        </div>
+      </div>
+
+      {project.audioName && !peaks && (
+        <p className="text-yellow-300/70 text-[11px] font-mono px-1 -mt-1">Music &quot;{project.audioName}&quot; isn&apos;t loaded in this session. Load it again to hear it and see the waveform.</p>
+      )}
+
+      <Timeline
+        timeMs={pb.timeMs}
+        pxPerSec={pxPerSec}
+        snap={snap}
+        following={pb.playing}
+        peaks={peaks?.data ?? null}
+        peaksMs={peaks?.ms ?? 0}
+        audioName={project.audioName}
+        onSeek={pb.seek}
+      />
+
+      {/* Firmware export */}
+      {arduino && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={() => setArduino(null)}>
+          <div className="w-full max-w-3xl rounded-xl border border-white/10 bg-[#0f0f0f] p-5" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-3 gap-3">
+              <h4 className="text-white font-semibold">Export to bench costume firmware</h4>
+              <select value={arduino.dancer} onChange={(e) => setArduino({ dancer: Number(e.target.value) })} className="bg-black/40 border border-white/10 rounded-md px-2 py-1 text-white text-xs">
+                {Array.from({ length: project.dancers }, (_, i) => <option key={i} value={i}>Dancer {i + 1}</option>)}
+              </select>
+            </div>
+            <textarea readOnly value={arduinoCode} className="w-full h-72 bg-black/50 border border-white/10 rounded-md p-3 text-[11px] font-mono text-green-200" />
+            <div className="flex gap-2 mt-3">
+              <button className={btnIdle} onClick={() => void navigator.clipboard.writeText(arduinoCode).then(() => addLog('INFO', 'Show · firmware cue table copied'))}>Copy</button>
+              <p className="text-white/30 text-[11px] self-center">Paste over <code>SHOW[]</code> in <code>firmware/bench_sync_test/test_costume/test_costume.ino</code>, then upload.</p>
+              <button className={`${btnIdle} ml-auto`} onClick={() => setArduino(null)}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}

@@ -1,0 +1,6 @@
+# Build output and dependencies anywhere in the repo
+.next/
+node_modules/
+
+# Old app folder name (renamed to lumacue/); a stale dev server can recreate its cache
+pov-stage/
