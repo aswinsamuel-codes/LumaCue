@@ -45,7 +45,7 @@ To create a premium, intuitive interface for controlling stage lighting systems 
 ### 2.2 Project Structure
 
 ```
-pov-stage/
+lumacue/
 ├── app/
 │   ├── layout.tsx          # Root layout with fonts
 │   ├── page.tsx            # Main dashboard page

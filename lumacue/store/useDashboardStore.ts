@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { getWebSocketClient } from '@/lib/websocket-client'
-import type { WSMessage } from '@/lib/websocket-client'
+import type { ConnectionStatus, WSCommand, WSMessage } from '@/lib/websocket-client'
 
 export type ZoneMode = 'Static' | 'Pulse' | 'Flash'
 
@@ -35,16 +35,13 @@ export interface LogEntry {
 }
 
 interface DashboardState {
-  connected: boolean
-  hardwareConnected: boolean
+  bandLink: ConnectionStatus
   zones: Zone[]
   activeColor: string
   favoriteColors: string[]
   presets: Preset[]
   logs: LogEntry[]
   authenticated: boolean
-  setConnected: (v: boolean) => void
-  setHardwareConnected: (v: boolean) => void
   setAuthenticated: (v: boolean) => void
   addZone: (name: string) => void
   deleteZone: (id: string) => void
@@ -63,6 +60,7 @@ interface DashboardState {
   emergencyOff: () => void
   addLog: (type: LogType, message: string) => void
   initializeWebSocket: () => void
+  reconnectHardware: () => void
 }
 
 function timestamp() {
@@ -76,15 +74,34 @@ function makeId() {
 // WebSocket client instance
 let wsClient: ReturnType<typeof getWebSocketClient> | null = null
 
-function sendToHardware(command: any) {
-  if (wsClient && wsClient.isConnected()) {
-    wsClient.send(command)
+// The hand band controller has three outputs, keyed A/B/C (hardware/gpio-controller.js).
+// The built-in zones map to them by id; zones added in the UI have no output yet.
+const HARDWARE_ZONES: Record<string, string> = { a: 'A', b: 'B', c: 'C' }
+const warnedUnmapped = new Set<string>()
+
+function hardwareZone(zone: Zone): string | null {
+  return HARDWARE_ZONES[zone.id] ?? null
+}
+
+function sendToHardware(command: WSCommand) {
+  // While offline, changes stay in the app and are pushed when the link comes back.
+  return wsClient?.send(command) ?? false
+}
+
+function sendZoneCommand(zone: Zone, command: Omit<WSCommand, 'zone'>, log: (t: LogType, m: string) => void) {
+  const hw = hardwareZone(zone)
+  if (!hw) {
+    if (!warnedUnmapped.has(zone.id)) {
+      warnedUnmapped.add(zone.id)
+      log('WARN', `${zone.name} has no hardware output (only Zone A/B/C are wired)`)
+    }
+    return
   }
+  sendToHardware({ ...command, zone: hw })
 }
 
 export const useDashboardStore = create<DashboardState>((set, get) => ({
-  connected: true,
-  hardwareConnected: false,
+  bandLink: 'disconnected',
   authenticated: false,
   zones: [
     { id: 'a', name: 'Zone A', enabled: true, mode: 'Static', speed: 50, color: '#3B82F6' },
@@ -117,44 +134,53 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
   ],
   logs: [
     { id: makeId(), time: timestamp(), type: 'INFO', message: 'System initialized' },
-    { id: makeId(), time: timestamp(), type: 'INFO', message: 'Connected to LumaCue controller' },
   ],
 
-  setConnected: (v) => set({ connected: v }),
-  setHardwareConnected: (v) => set({ hardwareConnected: v }),
   setAuthenticated: (v) => set({ authenticated: v }),
 
   initializeWebSocket: () => {
-    if (typeof window === 'undefined') return
+    if (typeof window === 'undefined' || wsClient) return
 
     const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8080'
     wsClient = getWebSocketClient(wsUrl)
+    let wasConnected = false
+
+    wsClient.onStatusChange((status) => {
+      set({ bandLink: status })
+      if (status === 'connected') {
+        wasConnected = true
+        get().addLog('SYNC', 'Hand band hardware connected — sending current zone settings')
+        // Bring the hardware in line with whatever was changed while offline.
+        for (const zone of get().zones) {
+          if (!hardwareZone(zone)) continue
+          sendZoneCommand(zone, { action: 'setMode', mode: zone.mode, speed: zone.speed }, get().addLog)
+          sendZoneCommand(zone, { action: 'setColor', color: zone.color }, get().addLog)
+          sendZoneCommand(zone, { action: 'toggle', enabled: zone.enabled }, get().addLog)
+        }
+      } else if (status === 'disconnected' && wasConnected) {
+        wasConnected = false
+        get().addLog('ERROR', 'Hand band hardware lost — retrying automatically')
+      }
+    })
 
     wsClient.onMessage((message: WSMessage) => {
       switch (message.type) {
-        case 'connection':
-          get().setHardwareConnected(true)
-          get().addLog('INFO', 'Connected to hardware controller')
-          break
-        
         case 'log':
-          get().addLog(message.logType, message.message)
+          get().addLog(message.logType as LogType, String(message.message))
           break
-        
+
         case 'error':
-          get().addLog('ERROR', message.message)
-          break
-        
-        case 'gpio_status':
-          // Update zones with hardware status if needed
+          get().addLog('ERROR', String(message.message))
           break
       }
     })
 
-    wsClient.connect().catch(error => {
-      // Hardware not available - continue without it
-      get().setHardwareConnected(false)
-    })
+    get().addLog('INFO', `Looking for hand band hardware at ${wsUrl}`)
+    wsClient.connect()
+  },
+
+  reconnectHardware: () => {
+    wsClient?.reconnectNow()
   },
 
   addZone: (name) => {
@@ -178,7 +204,7 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
     get().addLog('ACTION', `${zone.name} turned ${enabled ? 'ON' : 'OFF'}`)
     
     // Send to hardware
-    sendToHardware({ zone: zone.name, action: 'toggle', enabled })
+    sendZoneCommand(zone, { action: 'toggle', enabled }, get().addLog)
   },
 
   setZoneMode: (id, mode) => {
@@ -186,7 +212,7 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
     set((s) => ({ zones: s.zones.map((z) => z.id === id ? { ...z, mode } : z) }))
     if (zone) {
       get().addLog('INFO', `${zone.name} → Mode: ${mode}`)
-      sendToHardware({ zone: zone.name, action: 'setMode', mode, speed: zone.speed })
+      sendZoneCommand(zone, { action: 'setMode', mode, speed: zone.speed }, get().addLog)
     }
   },
 
@@ -194,7 +220,7 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
     const zone = get().zones.find((z) => z.id === id)
     set((s) => ({ zones: s.zones.map((z) => z.id === id ? { ...z, speed } : z) }))
     if (zone) {
-      sendToHardware({ zone: zone.name, action: 'setSpeed', speed })
+      sendZoneCommand(zone, { action: 'setSpeed', speed }, get().addLog)
     }
   },
 
@@ -203,7 +229,7 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
     set((s) => ({ zones: s.zones.map((z) => z.id === id ? { ...z, color } : z) }))
     if (zone) {
       get().addLog('INFO', `${zone.name} → Color ${color.toUpperCase()}`)
-      sendToHardware({ zone: zone.name, action: 'setColor', color })
+      sendZoneCommand(zone, { action: 'setColor', color }, get().addLog)
     }
   },
 
@@ -241,20 +267,20 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
     get().addLog('SYNC', `Active color ${color.toUpperCase()} applied to all zones`)
     
     // Send to all zones
-    get().zones.forEach(zone => {
-      sendToHardware({ zone: zone.name, action: 'setColor', color })
-    })
+    get().zones.forEach((zone) => sendZoneCommand(zone, { action: 'setColor', color }, get().addLog))
   },
 
   syncAll: () => {
     get().addLog('SYNC', 'All zones synchronized')
-    sendToHardware({ zone: '', action: 'syncAll' })
+    if (!sendToHardware({ zone: '', action: 'syncAll' })) get().addLog('WARN', 'Sync not sent: hand band hardware offline')
   },
 
   emergencyOff: () => {
     set((s) => ({ zones: s.zones.map((z) => ({ ...z, enabled: false })) }))
     get().addLog('ERROR', 'EMERGENCY OFF — All zones disabled')
-    sendToHardware({ zone: '', action: 'emergencyOff' })
+    if (!sendToHardware({ zone: '', action: 'emergencyOff' })) {
+      get().addLog('WARN', 'Hand band hardware offline: emergency off applies when it reconnects. Use the power switches now.')
+    }
   },
 
   addLog: (type, message) => {

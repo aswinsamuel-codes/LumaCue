@@ -1,6 +1,6 @@
 import { create } from 'zustand'
-import { BaseStationSerial, isWebSerialSupported } from '@/lib/base-station-serial'
-import type { BaseCommand } from '@/lib/base-station-serial'
+import { BaseStationSerial, findKnownPort, isWebSerialSupported, onKnownPortPlugged } from '@/lib/base-station-serial'
+import type { BaseCommand, SerialPortLike } from '@/lib/base-station-serial'
 import { DEMO_SHOW } from '@/lib/costume-show'
 import { useDashboardStore } from '@/store/useDashboardStore'
 import type { LogType } from '@/store/useDashboardStore'
@@ -23,7 +23,8 @@ interface CostumeState {
   updateZone: (id: string, patch: Partial<Omit<CostumeZone, 'id'>>) => void
   deleteZone: (id: string) => void
   setBrightness: (v: number) => void
-  connectBase: () => Promise<void>
+  connectBase: (port?: SerialPortLike) => Promise<void>
+  watchBaseStation: () => void
   disconnectBase: () => Promise<void>
   arm: () => void
   start: () => void
@@ -41,6 +42,7 @@ function log(type: LogType, message: string) {
 }
 
 const base = new BaseStationSerial()
+let watching = false
 
 async function sendToBase(command: BaseCommand) {
   if (!base.isConnected()) return
@@ -82,11 +84,12 @@ export const useCostumeStore = create<CostumeState>((set, get) => ({
 
   setBrightness: (v) => set({ brightness: v }),
 
-  connectBase: async () => {
+  connectBase: async (port) => {
     if (!isWebSerialSupported()) {
       log('ERROR', 'USB serial needs Chrome or Edge on a desktop')
       return
     }
+    if (base.isConnected()) return
     try {
       await base.connect(
         (line) => {
@@ -95,17 +98,36 @@ export const useCostumeStore = create<CostumeState>((set, get) => ({
         },
         (unexpected) => {
           set({ baseConnected: false })
-          log(unexpected ? 'ERROR' : 'INFO', unexpected ? 'Base station disconnected (USB lost)' : 'Base station disconnected')
+          log(
+            unexpected ? 'ERROR' : 'INFO',
+            unexpected
+              ? 'Base station USB lost. Costumes keep playing their stored show; plug it back in to reconnect automatically'
+              : 'Base station disconnected',
+          )
         },
+        port,
       )
       // Opening the port resets the Nano, so the base starts fresh: idle, beacons on.
+      if (get().running) log('WARN', 'Base station restarted: its show clock was reset. Costumes keep their own clock')
       set({ baseConnected: true, beaconsOn: true, armed: false, running: false, showStartedAt: null })
-      log('SYNC', 'Base station connected (USB)')
+      log('SYNC', `Base station connected (USB${port ? ', automatic' : ''})`)
     } catch (e) {
       const msg = (e as Error).message
       // Closing the port picker without choosing is not an error worth shouting about.
-      log(msg.includes('No port selected') ? 'INFO' : 'ERROR', `Base station not connected: ${msg}`)
+      if (msg.includes('No port selected')) log('INFO', 'Base station not connected: no port chosen')
+      else log('ERROR', `Base station not connected: ${msg}. Is the Arduino Serial Monitor still open on that port?`)
     }
+  },
+
+  watchBaseStation: () => {
+    if (watching || !isWebSerialSupported()) return
+    watching = true
+    // Reconnect to a base station picked earlier: now, and whenever it is plugged back in.
+    void findKnownPort().then((port) => { if (port) void get().connectBase(port) })
+    onKnownPortPlugged((port) => {
+      log('INFO', 'Base station plugged in')
+      void get().connectBase(port)
+    })
   },
 
   disconnectBase: async () => {

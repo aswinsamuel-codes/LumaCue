@@ -1,7 +1,7 @@
 # Existing Software Assessment — POV.STAGE
 
 **Assessed:** 29 Oct 2026 · **Commit:** `c6bd069` (branch `main`, clean tree)
-**Scope:** everything tracked under `pov-stage/` except `node_modules`. All statements below come from reading the source; anything not verified on hardware is labelled.
+**Scope:** everything tracked under `lumacue/` except `node_modules`. All statements below come from reading the source; anything not verified on hardware is labelled.
 
 ## 1. Summary
 
@@ -17,7 +17,7 @@ POV.STAGE is a **live, manual lighting-control dashboard** (web UI) plus a **Ras
 | Size | ~1,100 lines of app/hardware code; ~1,000 lines of docs |
 
 ```
-pov-stage/
+lumacue/
   app/page.tsx, layout.tsx, globals.css      single-page dashboard
   components/  TopBar, ZoneCard, ColorPanel, PresetPanel,
                GlobalControlBar, LogPanel, LoginPage
@@ -35,11 +35,11 @@ pov-stage/
 
 ```bash
 # frontend (http://localhost:3000)
-cd pov-stage && npm install && npm run dev
+cd lumacue && npm install && npm run dev
 # simulator (ws://localhost:8080) — any OS
-cd pov-stage/hardware && npm install && npm test
+cd lumacue/hardware && npm install && npm test
 # real server — Raspberry Pi with pigpiod running
-cd pov-stage/hardware && npm start
+cd lumacue/hardware && npm start
 ```
 
 Frontend URL to hardware is `NEXT_PUBLIC_WS_URL` (default `ws://localhost:8080`). Login access code is hard-coded in `components/LoginPage.tsx`.

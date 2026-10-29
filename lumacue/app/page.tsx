@@ -11,19 +11,22 @@ import TabBar from '@/components/TabBar'
 import type { ShowTab } from '@/components/TabBar'
 import CostumeView from '@/components/costume/CostumeView'
 import { useDashboardStore } from '@/store/useDashboardStore'
+import { useCostumeStore } from '@/store/useCostumeStore'
 
 export default function Home() {
   const { zones, authenticated, addZone, deleteZone, initializeWebSocket } = useDashboardStore()
   const [showAddZone, setShowAddZone] = useState(false)
   const [newZoneName, setNewZoneName] = useState('')
   const [tab, setTab] = useState<ShowTab>('band')
+  const watchBaseStation = useCostumeStore((s) => s.watchBaseStation)
 
-  // Initialize WebSocket connection after authentication
+  // Start both hardware links after authentication. Each one reconnects on its own.
   useEffect(() => {
     if (authenticated) {
       initializeWebSocket()
+      watchBaseStation()
     }
-  }, [authenticated, initializeWebSocket])
+  }, [authenticated, initializeWebSocket, watchBaseStation])
 
   if (!authenticated) {
     return <LoginPage />

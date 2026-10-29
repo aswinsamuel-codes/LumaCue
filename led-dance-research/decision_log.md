@@ -20,3 +20,4 @@ Labels: **[Owner]** owner-provided · **[Agent-rec]** agent recommendation await
 - 2026-10-29: UI renamed POV.STAGE → LumaCue with "Powered by Aswin Samuel" (TopBar, LoginPage, page title, logs, docs). Login code unchanged.
 - 2026-10-29: Added `software_architecture.md` and `hardware_components_review.md`.
 - 2026-10-29 (session 2): Added `firmware/bench_sync_test/` (base_station + test_costume sketches, shared 10-byte packet header, wiring/test README). Both compile for Nano (5 mm and WS2812B modes); not run on hardware.
+- 2026-10-29 (session 2): App folder renamed `pov-stage/` → `lumacue/`. Package names and the Pi systemd service name (`pov-stage-hardware`) unchanged. Hand band and costume links now show real status and reconnect automatically; UI sends hardware zones as A/B/C (fixes D1, D6, D7).

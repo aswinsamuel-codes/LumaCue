@@ -43,7 +43,7 @@ sudo systemctl start pigpiod
 ```bash
 cd /home/pi
 git clone https://github.com/aswinsamuel-codes/pov.stage.git
-cd pov.stage/pov-stage/hardware
+cd pov.stage/lumacue/hardware
 npm install
 ```
 
@@ -82,7 +82,7 @@ After=network.target pigpiod.service
 [Service]
 Type=simple
 User=pi
-WorkingDirectory=/home/pi/pov.stage/pov-stage/hardware
+WorkingDirectory=/home/pi/pov.stage/lumacue/hardware
 ExecStart=/usr/bin/node server.js
 Restart=always
 RestartSec=10
@@ -209,7 +209,7 @@ Modes: `Static`, `Pulse`, `Flash`
 
 ## Frontend Configuration
 
-Add to `pov-stage/.env.local`:
+Add to `lumacue/.env.local`:
 ```env
 NEXT_PUBLIC_WS_URL=ws://192.168.1.100:8080
 ```

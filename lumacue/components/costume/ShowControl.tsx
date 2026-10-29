@@ -31,7 +31,7 @@ export default function ShowControl({ showMs }: { showMs: number }) {
           </div>
         </div>
         <button
-          onClick={baseConnected ? disconnectBase : connectBase}
+          onClick={() => (baseConnected ? disconnectBase() : connectBase())}
           disabled={!baseConnected && !isWebSerialSupported()}
           className="shrink-0 text-[10px] px-3 py-1.5 rounded bg-blue-500/20 border border-blue-500/30 text-blue-400 hover:bg-blue-500/30 transition-all font-mono disabled:opacity-30 disabled:cursor-not-allowed"
         >

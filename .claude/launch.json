@@ -4,7 +4,7 @@
     {
       "name": "lumacue-ui",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "pov-stage", "run", "dev"],
+      "runtimeArgs": ["--prefix", "lumacue", "run", "dev"],
       "port": 3000
     }
   ]

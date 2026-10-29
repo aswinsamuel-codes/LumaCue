@@ -15,9 +15,10 @@ class MockHardwareServer {
     this.wss = null;
     this.clients = new Set();
     this.zones = {
-      'Zone A': { enabled: false, mode: 'Static', speed: 50, color: '#3B82F6' },
-      'Zone B': { enabled: false, mode: 'Static', speed: 50, color: '#A855F7' },
-      'Zone C': { enabled: false, mode: 'Static', speed: 50, color: '#EC4899' }
+      // Same keys as the real gpio-controller.js, so the mock rejects what the Pi would reject
+      A: { enabled: false, mode: 'Static', speed: 50, color: '#3B82F6' },
+      B: { enabled: false, mode: 'Static', speed: 50, color: '#A855F7' },
+      C: { enabled: false, mode: 'Static', speed: 50, color: '#EC4899' }
     };
   }
 
@@ -84,29 +85,33 @@ class MockHardwareServer {
     const { zone, action, mode, color, speed, enabled } = command;
 
     try {
+      if (['setMode', 'setColor', 'toggle', 'setSpeed'].includes(action) && !this.zones[zone]) {
+        throw new Error(`Invalid zone: ${zone}`);
+      }
+
       switch (action) {
         case 'setMode':
           this.zones[zone].mode = mode;
           this.zones[zone].speed = speed;
-          this.log('ACTION', `${zone} mode set to ${mode.toUpperCase()}`);
+          this.log('ACTION', `Zone ${zone} mode set to ${mode.toUpperCase()}`);
           this.send(ws, { type: 'response', action, zone, success: true });
           break;
 
         case 'setColor':
           this.zones[zone].color = color;
-          this.log('INFO', `${zone} color set to ${color}`);
+          this.log('INFO', `Zone ${zone} color set to ${color}`);
           this.send(ws, { type: 'response', action, zone, success: true });
           break;
 
         case 'toggle':
           this.zones[zone].enabled = enabled;
-          this.log('ACTION', `${zone} turned ${enabled ? 'ON' : 'OFF'}`);
+          this.log('ACTION', `Zone ${zone} turned ${enabled ? 'ON' : 'OFF'}`);
           this.send(ws, { type: 'response', action, zone, success: true });
           break;
 
         case 'setSpeed':
           this.zones[zone].speed = speed;
-          this.log('INFO', `${zone} speed set to ${speed}%`);
+          this.log('INFO', `Zone ${zone} speed set to ${speed}%`);
           this.send(ws, { type: 'response', action, zone, success: true });
           break;
 

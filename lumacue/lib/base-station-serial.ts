@@ -11,8 +11,13 @@ interface SerialPortLike {
   readable: ReadableStream<Uint8Array> | null
   writable: WritableStream<Uint8Array> | null
 }
-interface SerialLike {
+interface SerialLike extends EventTarget {
   requestPort(): Promise<SerialPortLike>
+  getPorts(): Promise<SerialPortLike[]>
+}
+
+function serial() {
+  return (navigator as Navigator & { serial: SerialLike }).serial
 }
 
 export type BaseCommand = 'ARM' | 'START' | 'BLACKOUT' | 'BEACONS' | 'STATUS'
@@ -25,16 +30,25 @@ export class BaseStationSerial {
   private port: SerialPortLike | null = null
   private reader: ReadableStreamDefaultReader<Uint8Array> | null = null
   private closing = false
+  private opening = false
 
   isConnected() {
     return this.port !== null
   }
 
-  /** Asks the user to pick the base station's COM port, then reads lines until closed. */
-  async connect(onLine: (line: string) => void, onClosed: (unexpected: boolean) => void) {
-    const serial = (navigator as Navigator & { serial: SerialLike }).serial
-    const port = await serial.requestPort()
-    await port.open({ baudRate: 115200 })
+  /**
+   * Opens the base station's COM port, then reads lines until closed.
+   * Without a port, asks the user to pick one (needs a click).
+   */
+  async connect(onLine: (line: string) => void, onClosed: (unexpected: boolean) => void, port?: SerialPortLike) {
+    if (this.port || this.opening) return
+    this.opening = true
+    try {
+      port ??= await serial().requestPort()
+      await port.open({ baudRate: 115200 })
+    } finally {
+      this.opening = false
+    }
     this.port = port
     this.closing = false
     void this.readLoop(onLine, onClosed)
@@ -88,3 +102,20 @@ export class BaseStationSerial {
     onClosed(unexpected)
   }
 }
+
+/** A port the user already picked before (Chrome remembers it), if one is plugged in now. */
+export async function findKnownPort(): Promise<SerialPortLike | null> {
+  if (!isWebSerialSupported()) return null
+  const ports = await serial().getPorts()
+  return ports[0] ?? null
+}
+
+/** Calls back when a previously picked port is plugged in again. Returns an unsubscribe function. */
+export function onKnownPortPlugged(callback: (port: SerialPortLike) => void) {
+  if (!isWebSerialSupported()) return () => {}
+  const handler = (e: Event) => callback(e.target as unknown as SerialPortLike)
+  serial().addEventListener('connect', handler)
+  return () => serial().removeEventListener('connect', handler)
+}
+
+export type { SerialPortLike }

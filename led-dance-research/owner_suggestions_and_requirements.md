@@ -3,7 +3,7 @@
 **Status:** PENDING INPUT — the owner's suggestions and refinements have not been supplied yet.
 **Working product name:** **LumaCue** — confirmed by owner 29 Oct 2026, with the credit line "Powered by Aswin Samuel".
 
-Nothing below is invented on the owner's behalf. Section 1 records only what exists in writing in the repo (`pov-stage/FEATURES.md`), which may be older ideas rather than current intent.
+Nothing below is invented on the owner's behalf. Section 1 records only what exists in writing in the repo (`lumacue/FEATURES.md`), which may be older ideas rather than current intent.
 
 ## 1. Ideas already written in the repo (owner to confirm still wanted)
 
