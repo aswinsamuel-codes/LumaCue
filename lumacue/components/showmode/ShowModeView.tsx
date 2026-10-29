@@ -44,7 +44,16 @@ export default function ShowModeView() {
   // Rehearsal: start from a section instead of the top (the base sends S<ms>; costumes join there).
   const [startFrom, setStartFrom] = useState(0)
   const startPoints = useMemo(
-    () => [{ ms: 0, label: 'the top (0:00)' }, ...(project.sections ?? []).map((s) => ({ ms: s.startMs, label: `§ ${s.name} (${formatShowTime(s.startMs)})` }))],
+    () => {
+      // One entry per start time: a section at 0:00 is the top of the show.
+      const points = [{ ms: 0, label: 'the top (0:00)' }]
+      for (const s of project.sections ?? []) {
+        const at = points.find((p) => p.ms === s.startMs)
+        if (at) at.label = `${at.label.replace(/ \(.*\)$/, '')} / § ${s.name} (${formatShowTime(s.startMs)})`
+        else points.push({ ms: s.startMs, label: `§ ${s.name} (${formatShowTime(s.startMs)})` })
+      }
+      return points
+    },
     [project.sections],
   )
   const from = startFrom < project.lengthMs ? startFrom : 0
