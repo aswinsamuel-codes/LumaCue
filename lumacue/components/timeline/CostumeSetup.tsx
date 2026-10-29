@@ -12,7 +12,7 @@ const POWER_BANK_MAH = 5000
 const USABLE_FRACTION = 0.8   // conversion losses and cut-off, assumed
 const CURRENT_LIMIT_MA = 1000 // firmware cap proposed in the hardware review
 
-export default function CostumeZones() {
+export default function CostumeSetup() {
   const { zones, brightness, addZone, updateZone, deleteZone, setBrightness } = useCostumeStore()
   const [newName, setNewName] = useState('')
 

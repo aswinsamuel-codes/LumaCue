@@ -91,3 +91,9 @@ export function isShowProject(x: unknown): x is ShowProject {
   const p = x as ShowProject
   return !!p && p.version === 1 && Array.isArray(p.clips) && typeof p.lengthMs === 'number' && typeof p.dancers === 'number'
 }
+
+export function formatShowTime(ms: number) {
+  const s = Math.max(0, ms) / 1000
+  const m = Math.floor(s / 60)
+  return `${m}:${(s - m * 60).toFixed(1).padStart(4, '0')}`
+}

@@ -50,6 +50,8 @@ interface ShowState {
   duplicateClip: (id: string) => void
   setProject: (patch: Partial<Omit<ShowProject, 'version' | 'clips'>>) => void
   replaceProject: (project: ShowProject) => void
+  /** Adds generated clips as one undo step, optionally replacing everything. */
+  applyClips: (clips: Clip[], replace: boolean) => void
 }
 
 export const useShowStore = create<ShowState>((set, get) => {
@@ -133,6 +135,11 @@ export const useShowStore = create<ShowState>((set, get) => {
       const project = { ...get().project, ...patch }
       set({ project })
       saveSoon(project)
+    },
+
+    applyClips: (clips, replace) => {
+      get().checkpoint()
+      commit(replace ? clips : [...get().project.clips, ...clips], { selectedClipId: null })
     },
 
     replaceProject: (project) => {

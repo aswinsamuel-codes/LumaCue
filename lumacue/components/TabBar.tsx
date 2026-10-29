@@ -1,11 +1,11 @@
 'use client'
 
-export type ShowTab = 'band' | 'costume' | 'timeline'
+export type ShowTab = 'band' | 'studio' | 'live'
 
 const TABS: { id: ShowTab; label: string; hint: string }[] = [
   { id: 'band', label: 'HAND BAND', hint: 'Live zone control' },
-  { id: 'costume', label: 'COSTUME', hint: 'Stored show · base station' },
-  { id: 'timeline', label: 'SHOW STUDIO', hint: 'Timeline · digital twin' },
+  { id: 'studio', label: 'SHOW STUDIO', hint: 'Design · timeline · digital twin' },
+  { id: 'live', label: 'SHOW MODE', hint: 'Run the costumes live' },
 ]
 
 export default function TabBar({ active, onChange }: { active: ShowTab; onChange: (tab: ShowTab) => void }) {

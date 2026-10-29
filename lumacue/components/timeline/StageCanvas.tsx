@@ -15,7 +15,8 @@ interface Props {
   focusDancer: number
   brightness: number
   xray: boolean
-  onPickDancer: (dancer: number) => void
+  dark?: boolean                         // show every LED off (blackout / not started)
+  onPickDancer?: (dancer: number) => void
 }
 
 function grid(n: number, view: 'all' | 'single') {
@@ -24,7 +25,7 @@ function grid(n: number, view: 'all' | 'single') {
   return { cols, rows: Math.ceil(n / cols) }
 }
 
-export default function StageCanvas({ project, layout, timeMs, view, focusDancer, brightness, xray, onPickDancer }: Props) {
+export default function StageCanvas({ project, layout, timeMs, view, focusDancer, brightness, xray, dark = false, onPickDancer }: Props) {
   const canvas = useRef<HTMLCanvasElement>(null)
   const frame = useRef(new Float32Array(0))
   const [size, setSize] = useState({ w: 0, h: 0 })
@@ -64,7 +65,8 @@ export default function StageCanvas({ project, layout, timeMs, view, focusDancer
     let peak = 0
 
     dancers.forEach((d, k) => {
-      renderDancer(project, layout, d, timeMs, f)
+      if (dark) f.fill(0)
+      else renderDancer(project, layout, d, timeMs, f)
       const mA = frameMilliamps(f, brightness)
       peak = Math.max(peak, mA)
 
@@ -120,10 +122,10 @@ export default function StageCanvas({ project, layout, timeMs, view, focusDancer
     ctx.font = '10px ui-monospace, monospace'
     ctx.fillStyle = peak > CURRENT_LIMIT_MA ? '#f87171' : 'rgba(255,255,255,0.35)'
     ctx.fillText(`${layout.total} LEDs/costume · peak draw now ≈ ${Math.round(peak)} mA at ${brightness}% cap`, 10, 16)
-  }, [project, layout, timeMs, view, focusDancer, brightness, xray, size])
+  }, [project, layout, timeMs, view, focusDancer, brightness, xray, dark, size])
 
   const handleClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (view === 'single') return
+    if (view === 'single' || !onPickDancer) return
     const rect = e.currentTarget.getBoundingClientRect()
     const { cols, rows } = grid(project.dancers, view)
     const col = Math.floor(((e.clientX - rect.left) / rect.width) * cols)
@@ -136,7 +138,7 @@ export default function StageCanvas({ project, layout, timeMs, view, focusDancer
     <canvas
       ref={canvas}
       onClick={handleClick}
-      className="absolute inset-0 w-full h-full cursor-pointer"
+      className={`absolute inset-0 w-full h-full ${onPickDancer ? 'cursor-pointer' : ''}`}
       style={{ width: size.w, height: size.h }}
       aria-label="Digital twin of the costumes, showing simulated LEDs"
     />

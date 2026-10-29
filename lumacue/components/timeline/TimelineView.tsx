@@ -2,12 +2,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import StageCanvas from '@/components/timeline/StageCanvas'
 import Timeline from '@/components/timeline/Timeline'
+import type { SnapMode } from '@/components/timeline/Timeline'
 import Inspector from '@/components/timeline/Inspector'
+import CostumeSetup from '@/components/timeline/CostumeSetup'
+import AutoCueDialog from '@/components/timeline/AutoCueDialog'
 import { buildLayout } from '@/lib/show/body'
-import { ALL_DANCERS, isShowProject } from '@/lib/show/model'
-import { audioPeaks, usePlayback } from '@/lib/show/playback'
+import { ALL_DANCERS, formatShowTime, isShowProject } from '@/lib/show/model'
+import { useShowPlayback } from '@/lib/show/playback'
 import { exportArduinoShow } from '@/lib/show/arduino-export'
-import { formatShowTime } from '@/lib/costume-show'
 import { useShowStore } from '@/store/useShowStore'
 import { useCostumeStore } from '@/store/useCostumeStore'
 import { useDashboardStore } from '@/store/useDashboardStore'
@@ -20,15 +22,17 @@ export default function TimelineView({ active }: { active: boolean }) {
   const { project, selectedClipId, selectedTrack, selectTrack, deleteClip, duplicateClip, undo, redo, past, future, setProject, replaceProject } = useShowStore()
   const { zones, brightness } = useCostumeStore()
   const addLog = useDashboardStore((s) => s.addLog)
-  const pb = usePlayback(project.lengthMs)
+  const pb = useShowPlayback()
 
   const layout = useMemo(() => buildLayout(zones), [zones])
   const [pxPerSec, setPxPerSec] = useState(60)
-  const [snap, setSnap] = useState(true)
+  const [snap, setSnap] = useState<SnapMode>('grid')
   const [view, setView] = useState<'all' | 'single'>('all')
   const [xray, setXray] = useState(false)
-  const [peaks, setPeaks] = useState<{ data: Float32Array; ms: number } | null>(null)
   const [arduino, setArduino] = useState<{ dancer: number } | null>(null)
+  const [setupOpen, setSetupOpen] = useState(false)
+  const [autoOpen, setAutoOpen] = useState(false)
+  const peaks = pb.audio
   const audioInput = useRef<HTMLInputElement>(null)
   const importInput = useRef<HTMLInputElement>(null)
   const focusDancer = selectedTrack === ALL_DANCERS ? 0 : selectedTrack
@@ -53,9 +57,7 @@ export default function TimelineView({ active }: { active: boolean }) {
 
   const loadAudio = async (file: File) => {
     try {
-      const { peaks: data, durationMs } = await audioPeaks(file)
-      pb.setAudioFile(file)
-      setPeaks({ data, ms: durationMs })
+      const durationMs = await pb.loadAudio(file)
       setProject({ audioName: file.name, lengthMs: Math.ceil(durationMs) })
       pb.seek(0)
       addLog('INFO', `Show · music loaded: ${file.name} (${formatShowTime(durationMs)})`)
@@ -106,6 +108,7 @@ export default function TimelineView({ active }: { active: boolean }) {
             <button className={view === 'all' ? btnOn : btnIdle} onClick={() => setView('all')}>All dancers</button>
             <button className={view === 'single' ? btnOn : btnIdle} onClick={() => setView('single')}>Dancer {focusDancer + 1}</button>
             <button className={xray ? btnOn : btnIdle} onClick={() => setXray(!xray)} title="Hide the body and show only the LED layout">X-ray</button>
+            <button className={btnIdle} onClick={() => setSetupOpen(true)} title="Zones, LED counts, body positions, brightness and battery">⚙ Costume setup</button>
           </div>
         </div>
         <Inspector timeMs={pb.timeMs} audioLoaded={!!peaks} />
@@ -123,12 +126,26 @@ export default function TimelineView({ active }: { active: boolean }) {
         <div className="h-5 w-px bg-white/10 mx-1" />
         <span className="text-white/30 text-[10px] font-mono">ZOOM</span>
         <input type="range" min={15} max={400} value={pxPerSec} onChange={(e) => setPxPerSec(Number(e.target.value))} className="w-24 accent-purple-500" aria-label="Timeline zoom" />
-        <button className={snap ? btnOn : btnIdle} onClick={() => setSnap(!snap)} title="Snap clips to 0.1 s">Snap</button>
+        <button
+          className={snap === 'off' ? btnIdle : btnOn}
+          onClick={() => setSnap(snap === 'off' ? 'grid' : snap === 'grid' && peaks ? 'beat' : 'off')}
+          title="Snap clips: off → 0.1 s → to the beat (needs music)"
+        >
+          Snap: {snap === 'off' ? 'off' : snap === 'grid' ? '0.1 s' : 'beat'}
+        </button>
         <button className={btnIdle} onClick={undo} disabled={!past.length} title="Undo (Ctrl+Z)">↶</button>
         <button className={btnIdle} onClick={redo} disabled={!future.length} title="Redo (Ctrl+Shift+Z)">↷</button>
 
         <div className="h-5 w-px bg-white/10 mx-1" />
         <button className={`${btn} bg-cyan-500/15 border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/25`} onClick={() => audioInput.current?.click()}>♪ {peaks ? 'Change music' : 'Load music'}</button>
+        <button
+          className={`${btn} bg-purple-500/20 border-purple-500/40 text-purple-200 hover:bg-purple-500/30`}
+          onClick={() => setAutoOpen(true)}
+          disabled={!peaks}
+          title={peaks ? 'Create cues automatically from the song’s beat and energy' : 'Load music first'}
+        >
+          ✨ Auto cues
+        </button>
         <input ref={audioInput} type="file" accept="audio/*" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) void loadAudio(f); e.target.value = '' }} />
 
         <div className="ml-auto flex gap-1.5">
@@ -146,13 +163,38 @@ export default function TimelineView({ active }: { active: boolean }) {
       <Timeline
         timeMs={pb.timeMs}
         pxPerSec={pxPerSec}
-        snap={snap}
+        snap={snap === 'beat' && !peaks ? 'grid' : snap}
+        analysis={peaks?.analysis ?? null}
         following={pb.playing}
-        peaks={peaks?.data ?? null}
-        peaksMs={peaks?.ms ?? 0}
+        peaks={peaks?.peaks ?? null}
+        peaksMs={peaks?.durationMs ?? 0}
         audioName={project.audioName}
         onSeek={pb.seek}
       />
+
+      {autoOpen && peaks && (
+        <AutoCueDialog
+          analysis={peaks.analysis}
+          lengthMs={project.lengthMs}
+          onDone={() => { setAutoOpen(false); pb.seek(0) }}
+          onClose={() => setAutoOpen(false)}
+        />
+      )}
+
+      {/* Costume setup: edits update the digital twin behind the dialog live */}
+      {setupOpen && (
+        <div className="fixed inset-0 z-50 flex items-start justify-end bg-black/40 p-4 pt-24" onClick={() => setSetupOpen(false)}>
+          <div className="w-full max-w-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-2 px-1">
+              <p className="text-white/60 text-[10px] font-mono tracking-widest">COSTUME SETUP · applies to every dancer</p>
+              <button className={btnIdle} onClick={() => setSetupOpen(false)}>Done</button>
+            </div>
+            <div className="bg-[#0f0f0f] rounded-xl">
+              <CostumeSetup />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Firmware export */}
       {arduino && (

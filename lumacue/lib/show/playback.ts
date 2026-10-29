@@ -1,8 +1,11 @@
 'use client'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { createContext, createElement, useCallback, useContext, useEffect, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
+import { analyzeAudio } from '@/lib/show/analyze'
+import type { AudioAnalysis } from '@/lib/show/analyze'
 
-/** Peak level per 20 ms of audio, for drawing the waveform. */
-export async function audioPeaks(file: File, bucketMs = 20): Promise<{ peaks: Float32Array; durationMs: number }> {
+/** Decodes a song: peak level per 20 ms for the waveform, plus beats and sections. */
+export async function decodeSong(file: File, bucketMs = 20): Promise<{ peaks: Float32Array; durationMs: number; analysis: AudioAnalysis }> {
   const ctx = new AudioContext()
   try {
     const buf = await ctx.decodeAudioData(await file.arrayBuffer())
@@ -17,7 +20,7 @@ export async function audioPeaks(file: File, bucketMs = 20): Promise<{ peaks: Fl
       }
       peaks[i] = m
     }
-    return { peaks, durationMs: buf.duration * 1000 }
+    return { peaks, durationMs: buf.duration * 1000, analysis: analyzeAudio(buf) }
   } finally {
     void ctx.close()
   }
@@ -34,6 +37,7 @@ export function usePlayback(lengthMs: number) {
   const [playing, setPlaying] = useState(false)
   const [timeMs, setTimeMs] = useState(0)
   const [loop, setLoop] = useState(false)
+  const [audioInfo, setAudioInfo] = useState<{ name: string; peaks: Float32Array; durationMs: number; analysis: AudioAnalysis } | null>(null)
   const loopRef = useRef(loop)
   useEffect(() => { loopRef.current = loop }, [loop])
 
@@ -118,12 +122,38 @@ export function usePlayback(lengthMs: number) {
     audio.current.preload = 'auto'
   }, [])
 
+  /** Decodes the song for the waveform and makes it the show clock. Returns its length. */
+  const loadAudio = useCallback(async (file: File) => {
+    const { peaks, durationMs, analysis } = await decodeSong(file)
+    setAudioFile(file)
+    setAudioInfo({ name: file.name, peaks, durationMs, analysis })
+    return durationMs
+  }, [setAudioFile])
+
   useEffect(() => () => {
     audio.current?.pause()
     if (audioUrl.current) URL.revokeObjectURL(audioUrl.current)
   }, [])
 
-  return { playing, timeMs, play, pause, seek, loop, setLoop, setAudioFile }
+  return { playing, timeMs, play, pause, seek, loop, setLoop, audio: audioInfo, loadAudio }
 }
 
 export type Playback = ReturnType<typeof usePlayback>
+
+/**
+ * One show clock and one song for the whole app, so Show Studio and Show Mode
+ * always agree on where the show is. Children don't re-render on every tick;
+ * only components that call useShowPlayback() do.
+ */
+const PlaybackContext = createContext<Playback | null>(null)
+
+export function ShowPlaybackProvider({ lengthMs, children }: { lengthMs: number; children: ReactNode }) {
+  const pb = usePlayback(lengthMs)
+  return createElement(PlaybackContext.Provider, { value: pb }, children)
+}
+
+export function useShowPlayback(): Playback {
+  const pb = useContext(PlaybackContext)
+  if (!pb) throw new Error('useShowPlayback must be used inside ShowPlaybackProvider')
+  return pb
+}

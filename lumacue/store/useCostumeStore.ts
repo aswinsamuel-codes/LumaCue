@@ -1,7 +1,6 @@
 import { create } from 'zustand'
 import { BaseStationSerial, findKnownPort, isWebSerialSupported, onKnownPortPlugged } from '@/lib/base-station-serial'
 import type { BaseCommand, SerialPortLike } from '@/lib/base-station-serial'
-import { DEMO_SHOW } from '@/lib/costume-show'
 import { useDashboardStore } from '@/store/useDashboardStore'
 import type { LogType } from '@/store/useDashboardStore'
 import { PLACEMENTS } from '@/lib/show/body'
@@ -20,7 +19,6 @@ interface CostumeState {
   baseConnected: boolean
   armed: boolean
   running: boolean
-  showStartedAt: number | null  // performance.now() when START was sent
   beaconsOn: boolean
   addZone: (name: string, leds: number) => void
   updateZone: (id: string, patch: Partial<Omit<CostumeZone, 'id'>>) => void
@@ -35,6 +33,9 @@ interface CostumeState {
   toggleBeacons: () => void
   showEnded: () => void
 }
+
+// The bench base station and costume firmware both use show id 1 (SHOW_ID).
+export const FIRMWARE_SHOW_ID = 1
 
 function makeId() {
   return Math.random().toString(36).slice(2, 9)
@@ -67,7 +68,6 @@ export const useCostumeStore = create<CostumeState>((set, get) => ({
   baseConnected: false,
   armed: false,
   running: false,
-  showStartedAt: null,
   beaconsOn: true,
 
   addZone: (name, leds) => {
@@ -114,7 +114,7 @@ export const useCostumeStore = create<CostumeState>((set, get) => ({
       )
       // Opening the port resets the Nano, so the base starts fresh: idle, beacons on.
       if (get().running) log('WARN', 'Base station restarted: its show clock was reset. Costumes keep their own clock')
-      set({ baseConnected: true, beaconsOn: true, armed: false, running: false, showStartedAt: null })
+      set({ baseConnected: true, beaconsOn: true, armed: false, running: false })
       log('SYNC', `Base station connected (USB${port ? ', automatic' : ''})`)
     } catch (e) {
       const msg = (e as Error).message
@@ -141,18 +141,18 @@ export const useCostumeStore = create<CostumeState>((set, get) => ({
 
   arm: () => {
     set({ armed: true })
-    log('ACTION', `ARM show ${DEMO_SHOW.id}${get().baseConnected ? '' : ' (preview only, no base station)'}`)
+    log('ACTION', `ARM show ${FIRMWARE_SHOW_ID}${get().baseConnected ? '' : ' (preview only, no base station)'}`)
     void sendToBase('ARM')
   },
 
   start: () => {
-    set({ running: true, showStartedAt: performance.now() })
-    log('SYNC', `START show ${DEMO_SHOW.id}${get().baseConnected ? '' : ' (preview only, no base station)'}`)
+    set({ running: true })
+    log('SYNC', `START show ${FIRMWARE_SHOW_ID}${get().baseConnected ? '' : ' (preview only, no base station)'}`)
     void sendToBase('START')
   },
 
   blackout: () => {
-    set({ running: false, armed: false, showStartedAt: null })
+    set({ running: false, armed: false })
     log('ERROR', 'BLACKOUT — all costumes off')
     void sendToBase('BLACKOUT')
   },

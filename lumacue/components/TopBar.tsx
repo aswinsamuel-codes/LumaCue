@@ -77,7 +77,7 @@ export default function TopBar() {
           label="COSTUME BASE"
           state={baseConnected ? 'USB' : 'OFFLINE'}
           tone={baseConnected ? 'ok' : 'off'}
-          title={baseConnected ? 'Base station connected over USB' : 'Connect it from the Costume tab; reconnects automatically after that'}
+          title={baseConnected ? 'Base station connected over USB' : 'Connect it from the Show Mode tab; reconnects automatically after that'}
         />
         <Clock />
       </div>

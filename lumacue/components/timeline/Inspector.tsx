@@ -75,7 +75,7 @@ export default function Inspector({ timeMs, audioLoaded }: { timeMs: number; aud
 
           {info.usesSpeed && (
             <div>
-              <div className="flex justify-between"><p className={label}>SPEED</p><span className="text-white/40 text-[10px] font-mono">{clip.speed}</span></div>
+              <div className="flex justify-between"><p className={label}>SPEED</p><span className="text-white/40 text-[10px] font-mono">{Math.round(clip.speed)}</span></div>
               <input type="range" min={0} max={100} value={clip.speed} onPointerDown={checkpoint} onChange={(e) => updateClip(clip.id, { speed: Number(e.target.value) })} className="w-full accent-purple-500" />
             </div>
           )}

@@ -1,18 +1,35 @@
 'use client'
 import { useEffect, useMemo, useRef } from 'react'
-import { ALL_DANCERS, EFFECT_BY_ID, trackLabel } from '@/lib/show/model'
+import { ALL_DANCERS, EFFECT_BY_ID, formatShowTime, trackLabel } from '@/lib/show/model'
 import type { Clip } from '@/lib/show/model'
-import { formatShowTime } from '@/lib/costume-show'
+import type { AudioAnalysis } from '@/lib/show/analyze'
 import { useShowStore } from '@/store/useShowStore'
 
 const HEADER_W = 140
 const ROW_H = 34
 const MIN_CLIP_MS = 100
+const AUDIO_H = 40
+
+export type SnapMode = 'off' | 'grid' | 'beat'
+
+const SECTION_COLORS = { low: '#3b82f6', mid: '#a855f7', high: '#ec4899' }
+
+function nearest(sorted: number[], x: number) {
+  let lo = 0, hi = sorted.length - 1
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1
+    if (sorted[mid] < x) lo = mid + 1
+    else hi = mid
+  }
+  const a = sorted[lo], b = sorted[lo - 1]
+  return b !== undefined && Math.abs(b - x) < Math.abs(a - x) ? b : a
+}
 
 interface Props {
   timeMs: number
   pxPerSec: number
-  snap: boolean
+  snap: SnapMode
+  analysis: AudioAnalysis | null
   following: boolean
   peaks: Float32Array | null
   peaksMs: number
@@ -51,7 +68,7 @@ function waveformPath(peaks: Float32Array, points: number) {
   return { d: `M0,50 L${top.join(' L')} L${bottom.join(' L')} Z`, n }
 }
 
-export default function Timeline({ timeMs, pxPerSec, snap, following, peaks, peaksMs, audioName, onSeek }: Props) {
+export default function Timeline({ timeMs, pxPerSec, snap, analysis, following, peaks, peaksMs, audioName, onSeek }: Props) {
   const { project, selectedClipId, selectedTrack, selectClip, selectTrack, addClip, updateClip, checkpoint } = useShowStore()
   const scroller = useRef<HTMLDivElement>(null)
   const drag = useRef<{ id: string; mode: 'move' | 'l' | 'r'; x: number; y: number; startMs: number; durationMs: number; trackIdx: number; moved: boolean } | null>(null)
@@ -59,7 +76,11 @@ export default function Timeline({ timeMs, pxPerSec, snap, following, peaks, pea
   const pps = pxPerSec / 1000
   const contentW = Math.max(200, project.lengthMs * pps)
   const tracks = useMemo(() => [ALL_DANCERS, ...Array.from({ length: project.dancers }, (_, i) => i)], [project.dancers])
-  const snapMs = (ms: number) => (snap ? Math.round(ms / 100) * 100 : Math.round(ms))
+  const snapMs = (ms: number) => {
+    if (snap === 'beat' && analysis?.beats.length) return Math.round(nearest(analysis.beats, ms))
+    return snap === 'off' ? Math.round(ms) : Math.round(ms / 100) * 100
+  }
+  const showBeats = !!analysis && analysis.beatMs * pps >= 6
   const step = tickStep(pxPerSec)
   const wave = useMemo(() => (peaks ? waveformPath(peaks, 4000) : null), [peaks])
 
@@ -133,11 +154,24 @@ export default function Timeline({ timeMs, pxPerSec, snap, following, peaks, pea
         </div>
 
         {/* Audio */}
-        <div className="flex h-10 border-b border-white/10">
-          <div className="sticky left-0 z-10 shrink-0 bg-[#0d0d10] border-r border-white/10 px-2 flex items-center text-[10px] font-mono text-cyan-300/60 truncate" style={{ width: HEADER_W }} title={audioName ?? undefined}>
-            ♪ {audioName ?? 'No music loaded'}
+        <div className="flex border-b border-white/10" style={{ height: AUDIO_H }}>
+          <div className="sticky left-0 z-10 shrink-0 bg-[#0d0d10] border-r border-white/10 px-2 flex flex-col justify-center text-[10px] font-mono text-cyan-300/60 overflow-hidden" style={{ width: HEADER_W }} title={audioName ?? undefined}>
+            <span className="truncate">♪ {audioName ?? 'No music loaded'}</span>
+            {analysis && <span className="text-white/40">≈ {analysis.bpm.toFixed(1)} BPM</span>}
           </div>
           <div className="relative" style={{ width: contentW }}>
+            {analysis && (
+              <>
+                {/* Energy sections along the bottom of the waveform */}
+                {analysis.sections.map((s, i) => (
+                  <div key={i} className="absolute bottom-0 h-1.5" title={`${s.level} energy${s.drop ? ' · drop' : ''}`}
+                    style={{ left: s.startMs * pps, width: (s.endMs - s.startMs) * pps, background: SECTION_COLORS[s.level], opacity: 0.7 }} />
+                ))}
+                {analysis.sections.filter((s) => s.drop).map((s, i) => (
+                  <span key={i} className="absolute top-0.5 text-[9px] font-mono text-pink-300 pointer-events-none" style={{ left: s.startMs * pps + 2 }}>▼ DROP</span>
+                ))}
+              </>
+            )}
             {wave && (
               <svg className="absolute top-0 left-0 h-full" style={{ width: peaksMs * pps }} viewBox={`0 0 ${wave.n} 100`} preserveAspectRatio="none" aria-hidden>
                 <path d={wave.d} fill="#22d3ee" fillOpacity={0.35} />
@@ -145,6 +179,18 @@ export default function Timeline({ timeMs, pxPerSec, snap, following, peaks, pea
             )}
           </div>
         </div>
+
+        {/* Beat grid behind the clips: bars brighter than beats */}
+        {showBeats && analysis && (
+          <svg className="absolute pointer-events-none" style={{ left: HEADER_W, top: 24 + AUDIO_H, width: contentW, height: tracks.length * ROW_H }} aria-hidden>
+            {analysis.beats.map((b, i) => (
+              <line key={i} x1={b * pps} x2={b * pps} y1={0} y2="100%" stroke="#ffffff" strokeOpacity={0.05} />
+            ))}
+            {analysis.downbeats.map((b, i) => (
+              <line key={`d${i}`} x1={b * pps} x2={b * pps} y1={0} y2="100%" stroke="#a855f7" strokeOpacity={0.25} />
+            ))}
+          </svg>
+        )}
 
         {/* Tracks */}
         {tracks.map((track) => {

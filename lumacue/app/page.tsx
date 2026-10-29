@@ -9,8 +9,10 @@ import LogPanel from '@/components/LogPanel'
 import LoginPage from '@/components/LoginPage'
 import TabBar from '@/components/TabBar'
 import type { ShowTab } from '@/components/TabBar'
-import CostumeView from '@/components/costume/CostumeView'
 import TimelineView from '@/components/timeline/TimelineView'
+import ShowModeView from '@/components/showmode/ShowModeView'
+import { ShowPlaybackProvider } from '@/lib/show/playback'
+import { useShowStore } from '@/store/useShowStore'
 import { useDashboardStore } from '@/store/useDashboardStore'
 import { useCostumeStore } from '@/store/useCostumeStore'
 
@@ -20,6 +22,7 @@ export default function Home() {
   const [newZoneName, setNewZoneName] = useState('')
   const [tab, setTab] = useState<ShowTab>('band')
   const watchBaseStation = useCostumeStore((s) => s.watchBaseStation)
+  const showLengthMs = useShowStore((s) => s.project.lengthMs)
 
   // Start both hardware links after authentication. Each one reconnects on its own.
   useEffect(() => {
@@ -55,7 +58,7 @@ export default function Home() {
 
       <main className="flex flex-1 gap-3 p-3 overflow-hidden relative">
         {/* LEFT PANEL */}
-        <div className={`flex flex-col gap-3 flex-1 min-w-0 pr-1 ${tab === 'timeline' ? 'overflow-hidden' : 'overflow-y-auto'}`}>
+        <div className={`flex flex-col gap-3 flex-1 min-w-0 pr-1 ${tab === 'band' ? 'overflow-y-auto' : 'overflow-hidden'}`}>
           {/* Both tabs stay mounted so a running preset or show keeps going when you switch */}
           <div role="tabpanel" className={tab === 'band' ? 'flex flex-col gap-3' : 'hidden'}>
             {/* Zone Cards */}
@@ -91,16 +94,19 @@ export default function Home() {
             {/* Global Control Bar */}
             <GlobalControlBar />
           </div>
-          <div role="tabpanel" className={tab === 'costume' ? 'flex flex-col gap-3' : 'hidden'}>
-            <CostumeView />
-          </div>
-          <div role="tabpanel" className={tab === 'timeline' ? 'flex flex-col flex-1 min-h-0' : 'hidden'}>
-            <TimelineView active={tab === 'timeline'} />
-          </div>
+          {/* Studio and Show Mode share one show clock and song */}
+          <ShowPlaybackProvider lengthMs={showLengthMs}>
+            <div role="tabpanel" className={tab === 'studio' ? 'flex flex-col flex-1 min-h-0' : 'hidden'}>
+              <TimelineView active={tab === 'studio'} />
+            </div>
+            <div role="tabpanel" className={tab === 'live' ? 'flex flex-col flex-1 min-h-0' : 'hidden'}>
+              <ShowModeView />
+            </div>
+          </ShowPlaybackProvider>
         </div>
 
         {/* RIGHT PANEL — Compact Log */}
-        <div className={tab === 'timeline' ? 'hidden' : 'flex flex-col w-80 shrink-0'}>
+        <div className={tab === 'studio' ? 'hidden' : 'flex flex-col w-80 shrink-0'}>
           <p className="text-white/20 text-[10px] font-mono tracking-widest mb-2 px-1">SYSTEM LOG</p>
           <div className="flex-1 min-h-0">
             <LogPanel />
