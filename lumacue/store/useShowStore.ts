@@ -1,6 +1,12 @@
 import { create } from 'zustand'
 import { ALL_DANCERS, makeId, parseShowProject, starterProject } from '@/lib/show/model'
-import type { Clip, EffectId, ShowProject } from '@/lib/show/model'
+import type { Clip, EffectId, ShowProject, ShowSection } from '@/lib/show/model'
+
+/** What undo/redo restores: the clips and the sections. */
+interface Snapshot {
+  clips: Clip[]
+  sections?: ShowSection[]
+}
 
 const STORAGE_KEY = 'lumacue.show.v1'
 const HISTORY_LIMIT = 100
@@ -35,11 +41,13 @@ interface ShowState {
   selectedTrack: number
   lastEffect: EffectId
   lastColor: string
-  past: Clip[][]
-  future: Clip[][]
+  past: Snapshot[]
+  future: Snapshot[]
 
   /** Call once before a change that should be one undo step (a drag calls it on pointer-down). */
   checkpoint: () => void
+  /** Replace the sections. undoable = false for typing in a field (one step per field, not per key). */
+  setSections: (sections: ShowSection[], undoable?: boolean) => void
   undo: () => void
   redo: () => void
 
@@ -61,6 +69,14 @@ export const useShowStore = create<ShowState>((set, get) => {
     set({ project, ...extra })
     saveSoon(project)
   }
+  const snapshot = (): Snapshot => ({ clips: get().project.clips, sections: get().project.sections })
+  const restore = (snap: Snapshot, extra: Partial<ShowState>) => {
+    const { sections: _old, ...rest } = get().project
+    void _old
+    const project: ShowProject = snap.sections ? { ...rest, clips: snap.clips, sections: snap.sections } : { ...rest, clips: snap.clips }
+    set({ project, ...extra })
+    saveSoon(project)
+  }
 
   return {
     project: loadSaved(),
@@ -71,18 +87,27 @@ export const useShowStore = create<ShowState>((set, get) => {
     past: [],
     future: [],
 
-    checkpoint: () => set((s) => ({ past: [...s.past.slice(-HISTORY_LIMIT + 1), s.project.clips], future: [] })),
+    checkpoint: () => set((s) => ({ past: [...s.past.slice(-HISTORY_LIMIT + 1), snapshot()], future: [] })),
 
     undo: () => {
-      const { past, project } = get()
+      const { past } = get()
       if (!past.length) return
-      commit(past[past.length - 1], { past: past.slice(0, -1), future: [project.clips, ...get().future] })
+      restore(past[past.length - 1], { past: past.slice(0, -1), future: [snapshot(), ...get().future] })
     },
 
     redo: () => {
-      const { future, project } = get()
+      const { future } = get()
       if (!future.length) return
-      commit(future[0], { future: future.slice(1), past: [...get().past, project.clips] })
+      restore(future[0], { future: future.slice(1), past: [...get().past, snapshot()] })
+    },
+
+    setSections: (sections, undoable = true) => {
+      if (undoable) get().checkpoint()
+      const { sections: _old, ...rest } = get().project
+      void _old
+      const project: ShowProject = sections.length ? { ...rest, sections: [...sections].sort((a, b) => a.startMs - b.startMs) } : rest
+      set({ project })
+      saveSoon(project)
     },
 
     selectClip: (id) => {

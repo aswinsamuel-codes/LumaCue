@@ -215,7 +215,7 @@ export default function ShowModeView() {
             onPointerUp={releaseStart}
             onPointerLeave={releaseStart}
             onKeyDown={(e) => { if (!running && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); handleStart() } }}
-            title={running ? 'Hold for 1 second to restart the show from the top' : 'Start the costumes, the music and the preview together'}
+            title={running ? `Hold for 1 second to restart from ${from ? formatShowTime(from) : 'the top'}` : 'Start the costumes, the music and the preview together'}
             className="relative overflow-hidden py-5 rounded-lg bg-green-500/25 border border-green-500/50 text-green-200 text-xl font-bold hover:bg-green-500/35 transition-all active:scale-95 select-none"
           >
             {running && (

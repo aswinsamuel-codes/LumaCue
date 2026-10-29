@@ -14,14 +14,16 @@ const btnIdle = `${btn} bg-white/5 border-white/10 text-white/60 hover:bg-white/
  * decides which parts of the costume are allowed to light.
  */
 export default function SectionsDialog({ timeMs, onClose, onSeek }: { timeMs: number; onClose: () => void; onSeek: (ms: number) => void }) {
-  const { project, setProject } = useShowStore()
+  const { project, setSections } = useShowStore()
   const zones = useCostumeStore((s) => s.zones)
   const sections = project.sections ?? []
   const handZones = zones.filter((z) => z.placement === 'hands').map((z) => z.id)
   const bodyZones = zones.filter((z) => z.placement !== 'hands').map((z) => z.id)
 
-  const save = (next: ShowSection[]) => setProject({ sections: [...next].sort((a, b) => a.startMs - b.startMs) })
-  const update = (id: string, patch: Partial<ShowSection>) => save(sections.map((s) => (s.id === id ? { ...s, ...patch } : s)))
+  const save = (next: ShowSection[], undoable = true) => setSections(next, undoable)
+  // Typing in a field: one undo step when the field gets focus, not one per key.
+  const update = (id: string, patch: Partial<ShowSection>, undoable = true) => save(sections.map((s) => (s.id === id ? { ...s, ...patch } : s)), undoable)
+  const typing = { onFocus: () => useShowStore.getState().checkpoint() }
 
   const add = (name: string, darkZones: string[]) => {
     const start = Math.max(0, Math.min(Math.round(timeMs), project.lengthMs - 1000))
@@ -78,9 +80,9 @@ export default function SectionsDialog({ timeMs, onClose, onSeek }: { timeMs: nu
                   const overlaps = sections.some((o) => o.id !== s.id && o.startMs < s.endMs && s.startMs < o.endMs)
                   return (
                     <tr key={s.id} className="border-t border-white/5">
-                      <td className="py-1.5 pr-2"><input value={s.name} onChange={(e) => update(s.id, { name: e.target.value })} className={`${input} w-36`} aria-label="Section name" /></td>
-                      <td className="py-1.5 pr-2"><input type="number" step={0.1} value={secs(s.startMs)} onChange={(e) => update(s.id, { startMs: Math.min(parseSecs(e.target.value), s.endMs - 100) })} className={`${input} w-20 font-mono`} aria-label="Start, seconds" /></td>
-                      <td className="py-1.5 pr-2"><input type="number" step={0.1} value={secs(s.endMs)} onChange={(e) => update(s.id, { endMs: Math.max(parseSecs(e.target.value), s.startMs + 100) })} className={`${input} w-20 font-mono`} aria-label="End, seconds" /></td>
+                      <td className="py-1.5 pr-2"><input {...typing} value={s.name} onChange={(e) => update(s.id, { name: e.target.value }, false)} className={`${input} w-36`} aria-label="Section name" /></td>
+                      <td className="py-1.5 pr-2"><input {...typing} type="number" step={0.1} value={secs(s.startMs)} onChange={(e) => update(s.id, { startMs: Math.min(parseSecs(e.target.value), s.endMs - 100) }, false)} className={`${input} w-20 font-mono`} aria-label="Start, seconds" /></td>
+                      <td className="py-1.5 pr-2"><input {...typing} type="number" step={0.1} value={secs(s.endMs)} onChange={(e) => update(s.id, { endMs: Math.max(parseSecs(e.target.value), s.startMs + 100) }, false)} className={`${input} w-20 font-mono`} aria-label="End, seconds" /></td>
                       {zones.map((z) => (
                         <td key={z.id} className="py-1.5 px-1 text-center">
                           <input type="checkbox" checked={!s.darkZones.includes(z.id)} onChange={() => toggleZone(s, z.id)} className="accent-purple-500" aria-label={`${z.name} lights in ${s.name}`} />
