@@ -47,13 +47,13 @@ export default function ShowModeView() {
 
   // Keep the base station's clock on the music: it runs on its own resonator,
   // which can be off by ~0.1–0.5 % (up to ~1 s over a 3-minute song).
-  const musicNow = useRef(pb.timeMs)
-  useEffect(() => { musicNow.current = pb.timeMs }, [pb.timeMs])
+  // Read the music clock at the moment of sending, not the last rendered frame (up to ~16 ms old).
+  const musicNow = pb.now
   useEffect(() => {
     if (!running || !musicSync || !baseConnected) return
-    const id = setInterval(() => syncToMusic(musicNow.current), 2000)
+    const id = setInterval(() => syncToMusic(musicNow()), 2000)
     return () => clearInterval(id)
-  }, [running, musicSync, baseConnected, syncToMusic])
+  }, [running, musicSync, baseConnected, syncToMusic, musicNow])
 
   // RESTART during a show needs a 1 s hold, so a stray click can't restart every costume.
   const [holding, setHolding] = useState(false)

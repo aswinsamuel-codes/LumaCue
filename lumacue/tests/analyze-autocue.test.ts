@@ -61,3 +61,26 @@ describe('generateCues', () => {
     expect(last.color2).toBe('#000000')
   })
 })
+
+describe('Bench 5 mm palette', () => {
+  it('only uses colours a red/green LED can show', async () => {
+    const { benchVisibleColor } = await import('@/lib/show/bench')
+    const { hexToRgb } = await import('@/lib/show/render')
+    const pal = PALETTES.find((p) => p.id === 'bench')!
+    for (const c of pal.colors) {
+      const [r, g, b] = hexToRgb(c)
+      expect(b).toBe(0)
+      expect(benchVisibleColor(r, g, b, '5mm').some((v) => v > 0)).toBe(true)
+    }
+  })
+  it('auto cues with it never use rainbow and stay within the palette', () => {
+    const a = analyzeAudio(fakeAudioBuffer(clickTrack(128, 64, SR), SR))
+    const clips = generateCues(a, 5, 64000, { style: 'energetic', palette: 'bench', stagger: true, accents: true })
+    const allowed = new Set([...PALETTES.find((p) => p.id === 'bench')!.colors, '#000000'])
+    expect(clips.some((c) => c.effect === 'rainbow')).toBe(false)
+    for (const c of clips) {
+      expect(allowed.has(c.color)).toBe(true)
+      expect(allowed.has(c.color2)).toBe(true)
+    }
+  })
+})

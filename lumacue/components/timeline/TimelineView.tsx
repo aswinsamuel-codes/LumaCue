@@ -111,7 +111,7 @@ export default function TimelineView({ active }: { active: boolean }) {
         for (let i = z.start; i < z.start + z.count; i++) { r += frame[i * 3]; g += frame[i * 3 + 1]; b += frame[i * 3 + 2] }
         return [r / z.count, g / z.count, b / z.count] as [number, number, number]
       })
-    }, 100)
+    }, 100, arduino.output)
     return { cues: cues.length, notes, fidelity }
   }, [arduino, project, zoneIds, layout])
 
@@ -284,8 +284,13 @@ export default function TimelineView({ active }: { active: boolean }) {
               <div className="rounded-lg border border-white/10 bg-black/30 p-3 mb-3 text-[11px] font-mono">
                 <div className="flex flex-wrap gap-x-5 gap-y-1">
                   <span className={preflight.fidelity.matchPct >= 90 ? 'text-green-300' : preflight.fidelity.matchPct >= 70 ? 'text-yellow-300' : 'text-red-300'}>
-                    Costume matches preview: {Math.round(preflight.fidelity.matchPct)} %
+                    Costume matches preview{arduino.output === '5mm' ? ' (as far as red/green LEDs can)' : ''}: {Math.round(preflight.fidelity.matchPct)} %
                   </span>
+                  {arduino.output === '5mm' && preflight.fidelity.colourLossPct >= 5 && (
+                    <span className="text-yellow-300" title="5 mm bi-colour LEDs only make red, green and yellow. Blue, cyan, purple and white come out green, red, yellow or dark">
+                      {Math.round(preflight.fidelity.colourLossPct)} % of lit time uses colours these LEDs can&apos;t make
+                    </span>
+                  )}
                   <span className={preflight.cues > CUE_BUDGET ? 'text-red-300' : 'text-white/50'}>
                     {preflight.cues} cues (fits ≈ {CUE_BUDGET})
                   </span>

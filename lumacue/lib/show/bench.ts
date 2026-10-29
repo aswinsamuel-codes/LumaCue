@@ -99,8 +99,12 @@ function compileWithStep(project: ShowProject, zoneIds: string[], dancer: number
 
     const source = c.track === ALL_DANCERS ? 'all' : 'own'
     const push = (s: number, e: number, zoneMask: number, fx: BenchFx, rgb: [number, number, number], param = 0) => {
-      for (let t = s; t < e; t += MAX_DURATION) {
-        cues.push({ startMs: t, durationMs: Math.min(e - t, MAX_DURATION), zoneMask, fx, r: rgb[0], g: rgb[1], b: rgb[2], param: Math.max(0, Math.min(MAX_DURATION, Math.round(param))), source, effect: c.effect })
+      const p = Math.max(0, Math.min(MAX_DURATION, Math.round(param)))
+      // Long clips are split (durationMs is uint16). Split on whole flash/chase
+      // periods so the pattern carries on without a jump at the seam.
+      const piece = p > 0 ? Math.floor(MAX_DURATION / p) * p : MAX_DURATION
+      for (let t = s; t < e; t += piece) {
+        cues.push({ startMs: t, durationMs: Math.min(e - t, piece), zoneMask, fx, r: rgb[0], g: rgb[1], b: rgb[2], param: p, source, effect: c.effect })
       }
     }
     const rgb = hexToRgb(c.color)
@@ -113,7 +117,7 @@ function compileWithStep(project: ShowProject, zoneIds: string[], dancer: number
       case 'blackout': push(start, end, mask, 'FX_OFF', [0, 0, 0]); break
       case 'strobe':
         push(start, end, mask, 'FX_FLASH', rgb, 1000 / (speedHz(c.speed) * 2))
-        notes.add('Strobe flashes are 50 % on (25 % in the preview) and keep time with the show clock.')
+        notes.add('Strobe flashes are 50 % on (25 % in the preview).')
         break
       case 'pulse':
         push(start, end, mask, 'FX_FLASH', rgb, 2000 / speedHz(c.speed))
@@ -123,7 +127,8 @@ function compileWithStep(project: ShowProject, zoneIds: string[], dancer: number
         push(start, end, mask, 'FX_FLASH', rgb, Math.max(60, 1000 / (speedHz(c.speed) * 4)))
         notes.add('Twinkle is played as a fast flash (no random sparkles in bench firmware).')
         break
-      case 'chase': push(start, end, mask, 'FX_CHASE', rgb, 2000 / speedHz(c.speed)); break
+      // One cue per zone, so each zone runs its own head like the preview does.
+      case 'chase': idx.forEach((z) => push(start, end, ZONE_BITS[z], 'FX_CHASE', rgb, 2000 / speedHz(c.speed))); break
       case 'wipe': {
         // Light the clip's zones one after another, so the costume fills up zone by zone.
         const full = c.durationMs
@@ -179,7 +184,7 @@ export function renderBench(cues: BenchCue[], t: number, output: BenchOutput, ou
   for (const c of cues) {
     if (!(t >= c.startMs && t < c.startMs + c.durationMs)) continue
     if (c.fx === 'FX_OFF' || c.fx === 'FX_SOLID' || c.fx === 'FX_FLASH') {
-      const lit = c.fx === 'FX_SOLID' || (c.fx === 'FX_FLASH' && c.param > 0 && t % c.param < Math.floor(c.param / 2))
+      const lit = c.fx === 'FX_SOLID' || (c.fx === 'FX_FLASH' && c.param > 0 && (t - c.startMs) % c.param < Math.floor(c.param / 2))
       for (let i = 0; i < n; i++) if (inMask(i, c.zoneMask)) { if (lit) set(i, c.r, c.g, c.b); else set(i, 0, 0, 0) }
       continue
     }
@@ -187,7 +192,7 @@ export function renderBench(cues: BenchCue[], t: number, output: BenchOutput, ou
     let count = 0
     for (let i = 0; i < n; i++) if (inMask(i, c.zoneMask)) count++
     if (!count || !c.param) continue
-    const head = Math.floor(((t % c.param) * count) / c.param)
+    const head = Math.floor((((t - c.startMs) % c.param) * count) / c.param)
     const tail = count >= 10 ? Math.floor(count / 10) : 1
     let k = 0
     for (let i = 0; i < n; i++) {
@@ -237,13 +242,18 @@ export interface FidelityIssue {
 
 export interface FidelityReport {
   matchPct: number          // share of (time × zone) samples where costume and preview agree
+  /** 5 mm only: share of lit samples whose colour a red/green LED can't make (blue, purple, white…). */
+  colourLossPct: number
   issues: FidelityIssue[]   // clips where they disagree most, worst first
 }
 
 /**
  * Compares the editor's preview with what the bench costume will show, zone by
  * zone every `stepMs`. A zone "agrees" when its average colour is within a
- * visible distance of the costume's. Uses the strip build (20 LEDs per zone).
+ * visible distance of the costume's (the strip's 20 LEDs averaged).
+ * On 5 mm LEDs both sides are first reduced to what a red/green LED can show,
+ * so matchPct measures the export; colours the LED can't make at all are
+ * counted separately in colourLossPct.
  */
 export function benchFidelity(
   project: ShowProject,
@@ -251,22 +261,36 @@ export function benchFidelity(
   dancer: number,
   renderZones: (t: number) => [number, number, number][],
   stepMs = 50,
+  output: BenchOutput = 'strip',
 ): FidelityReport {
   const { cues } = compileBenchCues(project, zoneIds, dancer)
-  const px = new Uint8Array(benchPixelCount('strip') * 3)
+  const px = new Uint8Array(benchPixelCount(output) * 3)
   const zones = Math.min(3, Math.max(1, zoneIds.length))
-  let good = 0, total = 0
+  let good = 0, total = 0, lit = 0, lost = 0
   const perClip = new Map<Clip, { bad: number; n: number }>()
 
   for (let t = stepMs / 2; t < project.lengthMs; t += stepMs) {
-    renderBench(cues, t, 'strip', px)
+    renderBench(cues, t, output, px)
     const editor = renderZones(t)
     let badHere = 0
     for (let z = 0; z < zones; z++) {
       let r = 0, g = 0, b = 0
-      for (let i = z * LEDS_PER_ZONE; i < (z + 1) * LEDS_PER_ZONE; i++) { r += px[i * 3]; g += px[i * 3 + 1]; b += px[i * 3 + 2] }
-      const [er, eg, eb] = editor[z] ?? [0, 0, 0]
-      const d = Math.hypot(r / LEDS_PER_ZONE - er, g / LEDS_PER_ZONE - eg, b / LEDS_PER_ZONE - eb)
+      if (output === 'strip') {
+        for (let i = z * LEDS_PER_ZONE; i < (z + 1) * LEDS_PER_ZONE; i++) { r += px[i * 3] / LEDS_PER_ZONE; g += px[i * 3 + 1] / LEDS_PER_ZONE; b += px[i * 3 + 2] / LEDS_PER_ZONE }
+      } else {
+        [r, g, b] = benchVisibleColor(px[z * 3], px[z * 3 + 1], px[z * 3 + 2], '5mm')
+      }
+      let [er, eg, eb] = editor[z] ?? [0, 0, 0]
+      if (output === '5mm') {
+        const v = benchVisibleColor(er, eg, eb, '5mm')
+        if (er + eg + eb > 60) {
+          lit++
+          // Lost: the LED shows nothing, or something far from the intended colour.
+          if (Math.hypot(v[0] - er, v[1] - eg, v[2] - eb) > 180 || v[0] + v[1] + v[2] === 0) lost++
+        }
+        ;[er, eg, eb] = v
+      }
+      const d = Math.hypot(r - er, g - eg, b - eb)
       total++
       if (d < 60) good++
       else badHere++
@@ -285,7 +309,7 @@ export function benchFidelity(
     .map(([c, s]) => ({ clipStartMs: c.startMs, effect: c.effect, track: c.track, mismatchPct: (100 * s.bad) / Math.max(1, s.n) }))
     .filter((i) => i.mismatchPct >= 25)
     .sort((a, b) => b.mismatchPct - a.mismatchPct)
-  return { matchPct: total ? (100 * good) / total : 100, issues }
+  return { matchPct: total ? (100 * good) / total : 100, colourLossPct: lit ? (100 * lost) / lit : 0, issues }
 }
 
 /**

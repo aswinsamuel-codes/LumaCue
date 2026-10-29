@@ -21,6 +21,8 @@ export const PALETTES: { id: string; label: string; colors: string[] }[] = [
   { id: 'ice', label: 'Ice', colors: ['#00E5FF', '#2563EB', '#A5F3FC', '#FFFFFF'] },
   { id: 'jungle', label: 'Jungle', colors: ['#00FF66', '#FFD000', '#00E5FF', '#FFFFFF'] },
   { id: 'royal', label: 'Royal', colors: ['#7C3AED', '#FFD000', '#FF0055', '#FFFFFF'] },
+  // Only colours the bench's red/green 5 mm LEDs can show (red, green, yellow; yellow accent).
+  { id: 'bench', label: 'Bench 5 mm', colors: ['#FF0000', '#00FF00', '#FF2000', '#FFB000'] },
 ]
 
 export interface AutoCueOptions {
@@ -98,6 +100,8 @@ export function generateCues(a: AudioAnalysis, dancers: number, lengthMs: number
           from = p0 + bar
         }
         if (k % 2 === 0) add(ALL_DANCERS, from, p1 - from, 'chase', color, { speed: twoLapsPerBar })
+        // Rainbow uses every hue, so palettes limited to what the hardware can show get a second chase instead.
+        else if (o.palette === 'bench') add(ALL_DANCERS, from, p1 - from, 'chase', next, { speed: twoLapsPerBar })
         else add(ALL_DANCERS, from, p1 - from, 'rainbow', '#FFFFFF', { speed: rainbowPerBar })
       }
     })

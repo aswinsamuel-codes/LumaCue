@@ -135,7 +135,8 @@ export function usePlayback(lengthMs: number) {
     if (audioUrl.current) URL.revokeObjectURL(audioUrl.current)
   }, [])
 
-  return { playing, timeMs, play, pause, seek, loop, setLoop, audio: audioInfo, loadAudio }
+  // now(): the exact music position at this instant (timeMs is only updated once per frame).
+  return { playing, timeMs, now, play, pause, seek, loop, setLoop, audio: audioInfo, loadAudio }
 }
 
 export type Playback = ReturnType<typeof usePlayback>

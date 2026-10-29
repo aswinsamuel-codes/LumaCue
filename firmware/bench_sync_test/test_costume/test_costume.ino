@@ -55,7 +55,7 @@ struct Cue {
   uint8_t  zoneMask;
   uint8_t  effect;
   uint8_t  r, g, b;
-  uint16_t param;  // FLASH: period ms (50 % duty, phased on show time). CHASE: ms per lap.
+  uint16_t param;  // FLASH: period ms (50 % duty, from the cue's start). CHASE: ms per lap.
 };
 
 // Demo show 1. Later cues win where they overlap.
@@ -65,7 +65,7 @@ const Cue SHOW[] PROGMEM = {
   {  6000,  4000, ZA,   FX_SOLID, 255,   0, 0,    0 },  // A red
   {  6000,  4000, ZB,   FX_SOLID,   0, 255, 0,    0 },  // B green
   {  6000,  4000, ZC,   FX_SOLID, 255, 160, 0,    0 },  // C yellow
-  { 10000, 10000, ZALL, FX_FLASH, 255, 160, 0, 1000 },  // SYNC SECTION: 1 Hz, same phase as base ref LED
+  { 10000, 10000, ZALL, FX_FLASH, 255, 160, 0, 1000 },  // SYNC SECTION: 1 Hz, starts on a whole second so it's in phase with the base ref LED
   { 20000,  6000, ZALL, FX_CHASE,   0, 255, 0,  900 },  // green chase
   { 26000,  2000, ZALL, FX_FLASH, 255,   0, 0,  250 },  // fast red flash
   // 28000-30000 dark, then the show ends
@@ -108,8 +108,9 @@ void applyCue(const Cue& c, uint32_t t) {
   Px off = { 0, 0, 0 };
 
   if (c.effect == FX_OFF || c.effect == FX_SOLID || c.effect == FX_FLASH) {
+    // FLASH phase counts from the cue's start, like the LumaCue preview.
     bool lit = c.effect == FX_SOLID ||
-               (c.effect == FX_FLASH && c.param && (t % c.param) < c.param / 2);
+               (c.effect == FX_FLASH && c.param && ((t - c.startMs) % c.param) < c.param / 2);
     for (uint8_t i = 0; i < NUM_PIXELS; i++)
       if (inMask(i, c.zoneMask)) pixels[i] = lit ? col : off;
     return;
@@ -119,7 +120,7 @@ void applyCue(const Cue& c, uint32_t t) {
   uint8_t count = 0;
   for (uint8_t i = 0; i < NUM_PIXELS; i++) if (inMask(i, c.zoneMask)) count++;
   if (!count || !c.param) return;
-  uint8_t head = (uint32_t)(t % c.param) * count / c.param;
+  uint8_t head = (uint32_t)((t - c.startMs) % c.param) * count / c.param;
   uint8_t tail = count >= 10 ? count / 10 : 1;
   uint8_t k = 0;
   for (uint8_t i = 0; i < NUM_PIXELS; i++) {

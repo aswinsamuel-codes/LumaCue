@@ -47,6 +47,7 @@ function LinkStatus({ label, state, tone, title, onClick }: {
 export default function TopBar() {
   const { bandLink, reconnectHardware } = useDashboardStore()
   const baseConnected = useCostumeStore((s) => s.baseConnected)
+  const baseKind = useCostumeStore((s) => s.baseKind)
 
   return (
     <header className="flex items-center justify-between px-5 py-3 border-b border-white/5 bg-black/40 backdrop-blur-sm shrink-0">
@@ -75,9 +76,9 @@ export default function TopBar() {
         />
         <LinkStatus
           label="COSTUME BASE"
-          state={baseConnected ? 'USB' : 'OFFLINE'}
-          tone={baseConnected ? 'ok' : 'off'}
-          title={baseConnected ? 'Base station connected over USB' : 'Connect it from the Show Mode tab; reconnects automatically after that'}
+          state={baseKind === 'simulator' ? 'SIM' : baseConnected ? 'USB' : 'OFFLINE'}
+          tone={baseKind === 'simulator' ? 'wait' : baseConnected ? 'ok' : 'off'}
+          title={baseKind === 'simulator' ? 'Simulated base station: no costumes are being controlled' : baseConnected ? 'Base station connected over USB' : 'Connect it from the Show Mode tab; reconnects automatically after that'}
         />
         <Clock />
       </div>

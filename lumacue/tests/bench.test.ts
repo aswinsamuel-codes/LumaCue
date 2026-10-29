@@ -21,8 +21,8 @@ describe('firmware contract (TS port must match test_costume.ino)', () => {
     expect(ino).toMatch(/for \(uint16_t n = 0; n < NUM_CUES; n\+\+\)/)
   })
   it('uses the same flash and chase rules', () => {
-    expect(ino).toContain('(t % c.param) < c.param / 2')
-    expect(ino).toContain('uint8_t head = (uint32_t)(t % c.param) * count / c.param;')
+    expect(ino).toContain('((t - c.startMs) % c.param) < c.param / 2')
+    expect(ino).toContain('uint8_t head = (uint32_t)((t - c.startMs) % c.param) * count / c.param;')
     expect(ino).toContain('uint8_t tail = count >= 10 ? count / 10 : 1;')
   })
 })
@@ -37,13 +37,15 @@ describe('renderBench', () => {
     renderBench(cues, 1000, '5mm', px)
     expect([...px].every((v) => v === 0)).toBe(true)
   })
-  it('phases FLASH on show time, 50 % duty', () => {
+  it('phases FLASH from the cue start, 50 % duty', () => {
     const cues = [cue({ startMs: 300, durationMs: 5000, fx: 'FX_FLASH', param: 1000 })]
     const px = new Uint8Array(9)
-    renderBench(cues, 1200, '5mm', px)
+    renderBench(cues, 700, '5mm', px)   // 400 ms into a 1000 ms period: on
     expect(px[0]).toBe(255)
-    renderBench(cues, 1700, '5mm', px)
+    renderBench(cues, 1000, '5mm', px)  // 700 ms in: off
     expect(px[0]).toBe(0)
+    renderBench(cues, 1400, '5mm', px)  // next period: on
+    expect(px[0]).toBe(255)
   })
   it('lets later cues win, including OFF', () => {
     const cues = [cue({}), cue({ zoneMask: 2, fx: 'FX_OFF', r: 0 })]
@@ -150,5 +152,21 @@ describe('benchFingerprint', () => {
     const { benchFingerprint } = await import('@/lib/show/bench')
     const fp = benchFingerprint(p, ZONE_IDS, 0)
     expect(benchFingerprint({ ...p, clips: [p.clips[0], { ...p.clips[1], color: '#0000FF' }] }, ZONE_IDS, 0)).toBe(fp)
+  })
+})
+
+describe('benchFidelity on 5 mm LEDs', () => {
+  it('flags colours a red/green LED cannot show', () => {
+    const p = project([clip({ durationMs: 10000, color: '#7C3AED' })]) // purple, whole show
+    expect(benchFidelity(p, ZONE_IDS, 0, editorZones(p, 0), 100, 'strip').matchPct).toBe(100)
+    const r = benchFidelity(p, ZONE_IDS, 0, editorZones(p, 0), 100, '5mm')
+    expect(r.colourLossPct).toBe(100)
+    expect(r.matchPct).toBe(100) // the export itself is right: dark is all the LED can do
+  })
+  it('red, green and yellow survive', () => {
+    const p = project([clip({ durationMs: 3000 }), clip({ startMs: 3000, durationMs: 3000, color: '#00FF00' }), clip({ startMs: 6000, durationMs: 4000, color: '#FFA000' })])
+    const r = benchFidelity(p, ZONE_IDS, 0, editorZones(p, 0), 100, '5mm')
+    expect(r.colourLossPct).toBe(0)
+    expect(r.matchPct).toBe(100)
   })
 })
