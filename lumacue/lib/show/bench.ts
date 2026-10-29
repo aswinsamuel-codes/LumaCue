@@ -360,6 +360,7 @@ export function benchFidelity(
 /** The hardware settings written into a costume sketch besides its cues. */
 export interface BenchHardware {
   output: BenchOutput
+  board?: string          // 'nano' (default) or 'esp32'
   zoneLeds: number[]
   brightnessPct: number
 }
@@ -371,7 +372,8 @@ export interface BenchHardware {
  */
 export function benchFingerprint(project: ShowProject, zoneIds: string[], dancer: number, hw?: BenchHardware) {
   const { cues } = compileBenchCues(project, zoneIds, dancer, hw?.output)
-  const settings = !hw ? '' : hw.output === '5mm' ? '5mm|' : `strip:${benchZoneLeds(hw.zoneLeds).join(',')}:${Math.round(hw.brightnessPct)}|`
+  const board = hw?.board && hw.board !== 'nano' ? `${hw.board}:` : ''
+  const settings = !hw ? '' : board + (hw.output === '5mm' ? '5mm|' : `strip:${benchZoneLeds(hw.zoneLeds).join(',')}:${Math.round(hw.brightnessPct)}|`)
   const text = `${settings}${Math.round(project.lengthMs)}|` + cues.map((c) => `${c.startMs},${c.durationMs},${c.zoneMask},${c.fx},${c.r},${c.g},${c.b},${c.param}`).join(';')
   let h = 0x811c9dc5
   for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 0x01000193)

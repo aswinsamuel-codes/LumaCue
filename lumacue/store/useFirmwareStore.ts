@@ -8,6 +8,7 @@ import { create } from 'zustand'
 export interface FirmwareRecord {
   fingerprint: string
   output: '5mm' | 'strip'
+  board?: 'nano' | 'esp32'   // missing on records from before the ESP32 option = nano
   downloadedAt: number
 }
 

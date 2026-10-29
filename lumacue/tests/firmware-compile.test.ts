@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { execFileSync } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { analyzeAudio } from '@/lib/show/analyze'
@@ -41,8 +41,13 @@ describe.skipIf(!cli || !hasRf24)('firmware compiles for the Arduino Nano', () =
       mkdirSync(path.dirname(path.join(dir, f.path)), { recursive: true })
       writeFileSync(path.join(dir, f.path), f.text)
     }
-    const run = (sketch: string) => execFileSync(cli!, ['compile', '-b', 'arduino:avr:nano:cpu=atmega328old', '--libraries', libs, path.join(dir, sketch)], { encoding: 'utf8' })
-    return { costume: run('test_costume'), base: run('base_station') }
+    // Build inside the temp folder (not Arduino's shared cache) and remove it afterwards.
+    const run = (sketch: string) => execFileSync(cli!, ['compile', '-b', 'arduino:avr:nano:cpu=atmega328old', '--libraries', libs, '--build-path', path.join(dir, `build-${sketch}`), path.join(dir, sketch)], { encoding: 'utf8' })
+    try {
+      return { costume: run('test_costume'), base: run('base_station') }
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   }
   const flashPct = (log: string) => Number(/Sketch uses \d+ bytes \((\d+)%\)/.exec(log)?.[1])
 
@@ -58,4 +63,43 @@ describe.skipIf(!cli || !hasRf24)('firmware compiles for the Arduino Nano', () =
     console.log(`strip costume: ${/Sketch uses.*/.exec(costume)?.[0]}`)
     expect(flashPct(costume)).toBeLessThan(95)
   }, 180000)
+})
+
+/**
+ * ESP32 build: needs the esp32 core. Point ARDUINO_ESP32_DATA at an Arduino data
+ * folder that has packages/esp32 (and ARDUINO_LIBRARIES at one with FastLED).
+ */
+const espData = process.env.ARDUINO_ESP32_DATA
+const hasEsp32 = !!espData && existsSync(path.join(espData, 'packages', 'esp32'))
+
+describe.skipIf(!cli || !hasEsp32 || !hasFastLed)('ESP32 firmware compiles', () => {
+  it('base and a costume with a 3-minute auto-cued show', async () => {
+    const { readFileSync } = await import('node:fs')
+    const esp = path.resolve(__dirname, '..', '..', 'firmware', 'esp32')
+    const t = {
+      baseIno: readFileSync(path.join(esp, 'base', 'base.ino'), 'utf8'),
+      baseProtocol: readFileSync(path.join(esp, 'base', 'lumacue_protocol.h'), 'utf8'),
+      costumeIno: readFileSync(path.join(esp, 'costume', 'costume.ino'), 'utf8'),
+      costumeProtocol: readFileSync(path.join(esp, 'costume', 'lumacue_protocol.h'), 'utf8'),
+    }
+    const SR = 22050
+    const a = analyzeAudio(fakeAudioBuffer(clickTrack(128, 180, SR), SR))
+    const show = project(generateCues(a, 5, 180000, { style: 'energetic', palette: 'neon', stagger: true, accents: true }), { dancers: 5, lengthMs: 180000 })
+    const dir = mkdtempSync(path.join(os.tmpdir(), 'lumacue-esp32-'))
+    for (const f of buildFirmware(t, show, ZONE_IDS, 1, 'strip', new Date(), { zoneLeds: [30, 15, 30], brightnessPct: 40 }, 'esp32')) {
+      mkdirSync(path.dirname(path.join(dir, f.path)), { recursive: true })
+      writeFileSync(path.join(dir, f.path), f.text)
+    }
+    const env = { ...process.env, ARDUINO_DIRECTORIES_DATA: espData }
+    const run = (sketch: string) => execFileSync(cli!, ['compile', '-b', 'esp32:esp32:esp32', '--libraries', libs, '--build-path', path.join(dir, `build-${sketch}`), path.join(dir, sketch)], { encoding: 'utf8', env })
+    try {
+      for (const sketch of ['base', 'costume']) {
+        const log = run(sketch)
+        console.log(`esp32 ${sketch}: ${/Sketch uses.*/.exec(log)?.[0]}`)
+        expect(log).toMatch(/Sketch uses \d+ bytes/)
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  }, 600000)
 })

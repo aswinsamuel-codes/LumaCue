@@ -12,12 +12,13 @@ import { ALL_DANCERS, formatShowTime, parseShowProject, showFileJson } from '@/l
 import { useShowPlayback } from '@/lib/show/playback'
 import { exportArduinoShow } from '@/lib/show/arduino-export'
 import { buildFirmware, buildFirmwareForAll } from '@/lib/show/firmware-bundle'
-import type { FirmwareTemplates, LedOutput } from '@/lib/show/firmware-bundle'
+import type { Board, FirmwareTemplates, LedOutput } from '@/lib/show/firmware-bundle'
 import { makeZip } from '@/lib/zip'
 import { benchFidelity, benchFingerprint, compileBenchCues, CUE_BUDGET } from '@/lib/show/bench'
 import type { BenchOutput } from '@/lib/show/bench'
 import { renderDancer } from '@/lib/show/render'
 import { useFirmwareStore } from '@/store/useFirmwareStore'
+import { useFirmwareStatus } from '@/lib/show/use-firmware-status'
 import { useShowStore } from '@/store/useShowStore'
 import { useCostumeStore } from '@/store/useCostumeStore'
 import { useDashboardStore } from '@/store/useDashboardStore'
@@ -39,7 +40,9 @@ export default function TimelineView({ active }: { active: boolean }) {
   const [xray, setXray] = useState(false)
   const [costumeView, setCostumeView] = useState<BenchOutput | null>(null)
   const recordDownload = useFirmwareStore((s) => s.recordDownload)
-  const [arduino, setArduino] = useState<{ dancer: number; output: LedOutput; error?: string; busy?: boolean } | null>(null)
+  const firmwareToUpdate = useFirmwareStatus().toUpdate
+  // board 'esp32' always has output 'strip' (the ESP32 costume drives a strip only).
+  const [arduino, setArduino] = useState<{ dancer: number; output: LedOutput; board: Board; error?: string; busy?: boolean } | null>(null)
   const [setupOpen, setSetupOpen] = useState(false)
   const [autoOpen, setAutoOpen] = useState(false)
   const [sectionsOpen, setSectionsOpen] = useState(false)
@@ -129,21 +132,21 @@ export default function TimelineView({ active }: { active: boolean }) {
     if (!arduino) return
     setArduino({ ...arduino, busy: true, error: undefined })
     try {
-      const res = await fetch('/api/firmware')
+      const res = await fetch(`/api/firmware?board=${arduino.board}`)
       const body = await res.json()
       if (!res.ok) throw new Error(body.error ?? `HTTP ${res.status}`)
       const strip = { zoneLeds: zones.map((z) => z.leds), brightnessPct: brightness }
       const files = all
-        ? buildFirmwareForAll(body as FirmwareTemplates, project, zoneIds, arduino.output, new Date(), strip)
-        : buildFirmware(body as FirmwareTemplates, project, zoneIds, arduino.dancer, arduino.output, new Date(), strip)
-      const folder = `lumacue_${project.name.replace(/[^\w-]+/g, '_') || 'show'}_${all ? 'all_dancers' : `dancer${arduino.dancer + 1}`}`
+        ? buildFirmwareForAll(body as FirmwareTemplates, project, zoneIds, arduino.output, new Date(), strip, arduino.board)
+        : buildFirmware(body as FirmwareTemplates, project, zoneIds, arduino.dancer, arduino.output, new Date(), strip, arduino.board)
+      const folder = `lumacue_${project.name.replace(/[^\w-]+/g, '_') || 'show'}_${arduino.board}_${all ? 'all_dancers' : `dancer${arduino.dancer + 1}`}`
       const a = document.createElement('a')
       a.href = URL.createObjectURL(makeZip(files.map((f) => ({ path: `${folder}/${f.path}`, text: f.text }))))
       a.download = `${folder}.zip`
       a.click()
       URL.revokeObjectURL(a.href)
       for (const d of all ? Array.from({ length: project.dancers }, (_, i) => i) : [arduino.dancer]) {
-        recordDownload(d, { fingerprint: benchFingerprint(project, zoneIds, d, { output: arduino.output, ...strip }), output: arduino.output, downloadedAt: Date.now() })
+        recordDownload(d, { fingerprint: benchFingerprint(project, zoneIds, d, { output: arduino.output, board: arduino.board, ...strip }), output: arduino.output, board: arduino.board, downloadedAt: Date.now() })
       }
       addLog('SYNC', `Show · firmware for ${all ? `all ${project.dancers} dancers` : `Dancer ${arduino.dancer + 1}`} downloaded (${folder}.zip, ${formatShowTime(project.lengthMs)})`)
       setArduino({ ...arduino, busy: false })
@@ -230,7 +233,9 @@ export default function TimelineView({ active }: { active: boolean }) {
           <button className={btnIdle} onClick={() => importInput.current?.click()}>Open</button>
           <input ref={importInput} type="file" accept=".json,application/json" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) void importJson(f); e.target.value = '' }} />
           <button className={btnIdle} onClick={exportJson}>Save file</button>
-          <button className={`${btn} bg-yellow-500/15 border-yellow-500/30 text-yellow-200 hover:bg-yellow-500/25`} onClick={() => setArduino({ dancer: focusDancer, output: '5mm' })}>→ Costume firmware</button>
+          <button className={`${btn} bg-yellow-500/15 border-yellow-500/30 text-yellow-200 hover:bg-yellow-500/25`} onClick={() => setArduino({ dancer: focusDancer, output: '5mm', board: 'nano' })} title={firmwareToUpdate ? `${firmwareToUpdate} costume(s) don't have firmware for the show as it is now` : 'Every costume has firmware for this show'}>
+            → Costume firmware{firmwareToUpdate ? <span className="ml-1.5 rounded bg-yellow-400/25 px-1 text-yellow-100">{firmwareToUpdate} to update</span> : ' ✓'}
+          </button>
         </div>
       </div>
 
@@ -286,7 +291,17 @@ export default function TimelineView({ active }: { active: boolean }) {
                 <select value={arduino.dancer} onChange={(e) => setArduino({ ...arduino, dancer: Number(e.target.value) })} className="bg-black/40 border border-white/10 rounded-md px-2 py-1 text-white text-xs" aria-label="Dancer">
                   {Array.from({ length: project.dancers }, (_, i) => <option key={i} value={i}>Dancer {i + 1}</option>)}
                 </select>
-                <select value={arduino.output} onChange={(e) => setArduino({ ...arduino, output: e.target.value as LedOutput })} className="bg-black/40 border border-white/10 rounded-md px-2 py-1 text-white text-xs" aria-label="LEDs on the costume">
+                <select
+                  value={arduino.board}
+                  onChange={(e) => { const board = e.target.value as Board; setArduino({ ...arduino, board, output: board === 'esp32' ? 'strip' : arduino.output }) }}
+                  className="bg-black/40 border border-white/10 rounded-md px-2 py-1 text-white text-xs"
+                  aria-label="Controller board"
+                  title="Nano: the bench sync test (NRF24 radio). ESP32: the planned costume controller (ESP-NOW radio, WS2812B strip); not yet compiled or tested, see firmware/esp32/README.md"
+                >
+                  <option value="nano">Nano bench (NRF24)</option>
+                  <option value="esp32">ESP32 (ESP-NOW) · not yet compiled</option>
+                </select>
+                <select value={arduino.output} disabled={arduino.board === 'esp32'} onChange={(e) => setArduino({ ...arduino, output: e.target.value as LedOutput })} className="bg-black/40 border border-white/10 rounded-md px-2 py-1 text-white text-xs disabled:opacity-50" aria-label="LEDs on the costume">
                   <option value="5mm">5 mm bi-colour LEDs</option>
                   <option value="strip">WS2812B strip</option>
                 </select>

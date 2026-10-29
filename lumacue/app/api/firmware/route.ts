@@ -2,21 +2,37 @@ import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 
 /**
- * Serves the bench firmware sketches from firmware/bench_sync_test so the
- * Show Studio can fill in a show and offer them as a download. LumaCue runs
- * locally from the repo, so the files are read straight from disk; the repo
- * copies stay the single source of truth.
+ * Serves the firmware sketches from firmware/ so the Show Studio can fill in a
+ * show and offer them as a download: ?board=nano (bench, NRF24, default) or
+ * ?board=esp32 (ESP-NOW). LumaCue runs locally from the repo, so the files are
+ * read straight from disk; the repo copies stay the single source of truth.
  */
-const ROOT = path.resolve(process.cwd(), '..', 'firmware', 'bench_sync_test')
+const FIRMWARE = path.resolve(process.cwd(), '..', 'firmware')
 
-const FILES = {
-  baseIno: 'base_station/base_station.ino',
-  baseProtocol: 'base_station/lumacue_protocol.h',
-  costumeIno: 'test_costume/test_costume.ino',
-  costumeProtocol: 'test_costume/lumacue_protocol.h',
+const BOARDS = {
+  nano: {
+    root: path.join(FIRMWARE, 'bench_sync_test'),
+    files: {
+      baseIno: 'base_station/base_station.ino',
+      baseProtocol: 'base_station/lumacue_protocol.h',
+      costumeIno: 'test_costume/test_costume.ino',
+      costumeProtocol: 'test_costume/lumacue_protocol.h',
+    },
+  },
+  esp32: {
+    root: path.join(FIRMWARE, 'esp32'),
+    files: {
+      baseIno: 'base/base.ino',
+      baseProtocol: 'base/lumacue_protocol.h',
+      costumeIno: 'costume/costume.ino',
+      costumeProtocol: 'costume/lumacue_protocol.h',
+    },
+  },
 } as const
 
-export async function GET() {
+export async function GET(request: Request) {
+  const board = new URL(request.url).searchParams.get('board') === 'esp32' ? 'esp32' : 'nano'
+  const { root: ROOT, files: FILES } = BOARDS[board]
   try {
     const entries = await Promise.all(
       Object.entries(FILES).map(async ([key, rel]) => [key, await readFile(path.join(ROOT, rel), 'utf8')] as const),

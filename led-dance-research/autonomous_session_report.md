@@ -58,6 +58,12 @@ Every change went through the same loop: **build → `npm run check` (types + li
 - **Costume templates:** Bench test, Hand bands + jacket, Hand bands only, Full suit.
 - **Bench 5 mm** auto-cue palette: red, green and yellow only, no rainbow.
 
+### ESP32 costume + base (the planned final controller), ahead of the hardware
+- `firmware/esp32/costume` and `firmware/esp32/base`: ESP-NOW broadcast instead of NRF24, WS2812B strip, 1 A current cap, BOOT button = START/BLACKOUT on the base.
+- **Same show format, render code, sync state machine, serial commands and 10-byte packet as the bench.** Tests compare the C functions and fail if they drift, so the preview, preflight, simulator and Show Mode all apply unchanged.
+- Show Studio's firmware dialog has a **Board** choice (Nano bench / ESP32). The download fills in the show, length, zone sizes and brightness. The firmware check records which board.
+- **Not compiled and not run.** I started installing the ESP32 toolchain into the session scratch folder, but at ~6 GB it **filled the C: drive** (it was already ~98 % full). I deleted the download straight away (C: back to 5.9 GB free) and did not retry. The code is held to the bench sketches by tests; the first real compile may need small fixes. Setup, wiring, the 3.3 V → 5 V data caveat and tests E1–E5 are in `firmware/esp32/README.md`.
+
 ### Robustness
 - **Show files are validated and repaired.** Before: a file with one bad clip was accepted and crashed the preview on every frame, and auto-save made it crash again on every reload. Tested with 200 rounds of random garbage.
 - **Show files carry their costume setup**, so a show made on one laptop opens correctly on the venue laptop.
@@ -81,7 +87,7 @@ Preview frame 0.27 ms · costume-view recompile ×10 3.9 ms · preflight 76 ms �
 - **Duplicate React keys** in the new Show Mode "Start from" list. Caught by the browser tests and fixed in `c3f42a8`.
 
 ## 4. Still open / ideas for next
-- **ESP32 + ESP-NOW firmware** for the final costumes, using the same cue table and the same sync protocol. Not started: the toolchain isn't installed and the platform choice is still open.
+- **Compile the ESP32 sketches** once there is disk space for the esp32 core (or on another PC), then bench-test E1–E5.
 - Desktop vs web decision (`software_architecture.md`). Everything built today works as a local web app in Chrome/Edge.
 - Undo doesn't cover the show name, dancer count or length (it covers clips and sections).
 - The costume can't report back to the laptop. The firmware check tracks *downloads*, not what is actually on the boards.

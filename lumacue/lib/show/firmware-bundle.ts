@@ -15,6 +15,14 @@ export interface FirmwareTemplates {
 
 export type LedOutput = '5mm' | 'strip'
 
+/** Which controller the sketches are for. ESP32 drives a WS2812B strip over ESP-NOW. */
+export type Board = 'nano' | 'esp32'
+
+const BOARD_INFO: Record<Board, { base: string; costume: string; boardText: string; docs: string }> = {
+  nano: { base: 'base_station', costume: 'test_costume', boardText: 'Board: Arduino Nano · Processor: ATmega328P (Old Bootloader)', docs: 'firmware/bench_sync_test/README.md' },
+  esp32: { base: 'base', costume: 'costume', boardText: 'Board: ESP32 Dev Module (arduino-esp32 core)', docs: 'firmware/esp32/README.md' },
+}
+
 const SHOW_TABLE = /const Cue SHOW\[\] PROGMEM = \{[\s\S]*?\n\};/
 const SHOW_LENGTH = /const uint32_t SHOW_LENGTH_MS(\s*)=\s*\d+;/
 const OUTPUT_MODE = /#define OUTPUT_MODE MODE_\w+/
@@ -42,7 +50,10 @@ export function buildFirmware(
   output: LedOutput,
   generatedAt = new Date(),
   strip: StripSettings = { zoneLeds: [20, 20, 20], brightnessPct: 25 },
+  board: Board = 'nano',
 ): { path: string; text: string }[] {
+  if (board === 'esp32') output = 'strip' // the ESP32 costume drives a strip only
+  const info = BOARD_INFO[board]
   const lengthMs = Math.round(project.lengthMs)
   const pad = (n: number) => String(n).padStart(2, '0')
   const when = `${generatedAt.getFullYear()}-${pad(generatedAt.getMonth() + 1)}-${pad(generatedAt.getDate())} ${pad(generatedAt.getHours())}:${pad(generatedAt.getMinutes())}`
@@ -64,20 +75,20 @@ export function buildFirmware(
     `LumaCue firmware for "${project.name}" (Dancer ${dancer + 1})`,
     `Show length: ${(lengthMs / 1000).toFixed(1)} s · LED output: ${output === 'strip' ? `WS2812B strip (needs the FastLED library): zones A/B/C = ${a}/${b}/${c} LEDs, brightness ${level}/255` : '5 mm bi-colour LEDs'}`,
     '',
-    '1. Unzip, then open base_station/base_station.ino in the Arduino IDE and upload it to the base Nano.',
-    '2. Open test_costume/test_costume.ino and upload it to the costume Nano.',
+    `1. Unzip, then open ${info.base}/${info.base}.ino in the Arduino IDE and upload it to the base station.`,
+    `2. Open ${info.costume}/${info.costume}.ino and upload it to the costume.`,
     '3. Close the Arduino Serial Monitor, then in LumaCue Show Mode click CONNECT USB, ARM, START.',
     '',
-    'Board: Arduino Nano · Processor: ATmega328P (Old Bootloader) · Libraries: RF24' + (output === 'strip' ? ', FastLED' : ''),
-    'Wiring and the full test plan: firmware/bench_sync_test/README.md in the LumaCue repo.',
+    `${info.boardText} · Libraries: ${board === 'esp32' ? 'FastLED' : 'RF24' + (output === 'strip' ? ', FastLED' : '')}`,
+    `Wiring and tests: ${info.docs} in the LumaCue repo.`,
     '',
   ].join('\r\n')
 
   return [
-    { path: 'base_station/base_station.ino', text: stamp + base },
-    { path: 'base_station/lumacue_protocol.h', text: t.baseProtocol },
-    { path: 'test_costume/test_costume.ino', text: stamp + costume },
-    { path: 'test_costume/lumacue_protocol.h', text: t.costumeProtocol },
+    { path: `${info.base}/${info.base}.ino`, text: stamp + base },
+    { path: `${info.base}/lumacue_protocol.h`, text: t.baseProtocol },
+    { path: `${info.costume}/${info.costume}.ino`, text: stamp + costume },
+    { path: `${info.costume}/lumacue_protocol.h`, text: t.costumeProtocol },
     { path: 'README.txt', text: readme },
   ]
 }
@@ -93,24 +104,26 @@ export function buildFirmwareForAll(
   output: LedOutput,
   generatedAt = new Date(),
   strip?: StripSettings,
+  board: Board = 'nano',
 ): { path: string; text: string }[] {
+  const info = BOARD_INFO[board]
   const files: { path: string; text: string }[] = []
   const pad = String(project.dancers).length < 2 ? 2 : String(project.dancers).length
   for (let d = 0; d < project.dancers; d++) {
-    const one = buildFirmware(t, project, zoneIds, d, output, generatedAt, strip)
-    if (d === 0) files.push(...one.filter((f) => f.path.startsWith('base_station/')))
+    const one = buildFirmware(t, project, zoneIds, d, output, generatedAt, strip, board)
+    if (d === 0) files.push(...one.filter((f) => f.path.startsWith(`${info.base}/`)))
     const dir = `dancer_${String(d + 1).padStart(pad, '0')}`
-    files.push(...one.filter((f) => f.path.startsWith('test_costume/')).map((f) => ({ path: `${dir}/${f.path}`, text: f.text })))
+    files.push(...one.filter((f) => f.path.startsWith(`${info.costume}/`)).map((f) => ({ path: `${dir}/${f.path}`, text: f.text })))
   }
   const readme = [
     `LumaCue firmware for "${project.name.replace(/[\r\n]+/g, ' ')}": all ${project.dancers} dancers`,
-    `Show length: ${(Math.round(project.lengthMs) / 1000).toFixed(1)} s · LED output: ${output === 'strip' ? 'WS2812B strip (needs the FastLED library)' : '5 mm bi-colour LEDs'}`,
+    `Show length: ${(Math.round(project.lengthMs) / 1000).toFixed(1)} s · LED output: ${board === 'esp32' || output === 'strip' ? 'WS2812B strip (needs the FastLED library)' : '5 mm bi-colour LEDs'}`,
     '',
-    '1. Upload base_station/base_station.ino to the base Nano (once).',
-    '2. For each dancer, upload dancer_NN/test_costume/test_costume.ino to that dancer\'s costume. Label the boards!',
+    `1. Upload ${info.base}/${info.base}.ino to the base station (once).`,
+    `2. For each dancer, upload dancer_NN/${info.costume}/${info.costume}.ino to that dancer's costume. Label the boards!`,
     '3. Close the Arduino Serial Monitor, then in LumaCue Show Mode click CONNECT USB, ARM, START.',
     '',
-    'Board: Arduino Nano · Processor: ATmega328P (Old Bootloader) · Libraries: RF24' + (output === 'strip' ? ', FastLED' : ''),
+    `${info.boardText} · Libraries: ${board === 'esp32' ? 'FastLED' : 'RF24' + (output === 'strip' ? ', FastLED' : '')}`,
     '',
   ].join('\r\n')
   files.push({ path: 'README.txt', text: readme })

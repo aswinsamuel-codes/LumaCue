@@ -7,8 +7,7 @@ import { useShowPlayback } from '@/lib/show/playback'
 import { isWebSerialSupported } from '@/lib/base-station-serial'
 import { FIRMWARE_SHOW_ID, useCostumeStore } from '@/store/useCostumeStore'
 import { useShowStore } from '@/store/useShowStore'
-import { useFirmwareStore } from '@/store/useFirmwareStore'
-import { benchFingerprint } from '@/lib/show/bench'
+import { useFirmwareStatus } from '@/lib/show/use-firmware-status'
 import { CURRENT_LIMIT_MA, showChecklist, worstCaseMilliamps } from '@/lib/show/checklist'
 
 /**
@@ -24,17 +23,8 @@ export default function ShowModeView() {
   } = useCostumeStore()
   const pb = useShowPlayback()
   const layout = useMemo(() => buildLayout(zones), [zones])
-  const flashed = useFirmwareStore((s) => s.byDancer)
   // Which costumes carry the show as it is now (by the last firmware download for each dancer).
-  const firmware = useMemo(() => {
-    const ids = zones.map((z) => z.id)
-    return Array.from({ length: project.dancers }, (_, d) => {
-      const rec = flashed[d]
-      const hw = rec && { output: rec.output, zoneLeds: zones.map((z) => z.leds), brightnessPct: brightness }
-      return { dancer: d, state: !rec || !hw ? 'never' : rec.fingerprint === benchFingerprint(project, ids, d, hw) ? 'ok' : 'stale' } as const
-    })
-  }, [project, zones, flashed, brightness])
-  const staleCount = firmware.filter((f) => f.state !== 'ok').length
+  const { perDancer: firmware, toUpdate: staleCount } = useFirmwareStatus()
 
   const checklist = showChecklist({
     baseKind, baseShowLengthMs, showLengthMs: project.lengthMs,
