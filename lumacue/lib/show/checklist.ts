@@ -21,6 +21,8 @@ export interface ChecklistInput {
   musicSync: boolean
   speakerDelayMs: number
   worstCaseMa: number                       // one costume at full white, at the brightness cap
+  /** The busiest costume over the real show, when worked out (Show Mode visible). */
+  showPeak?: { dancer: number; peakMa: number; peakAtMs: number; avgMa: number } | null
   currentLimitMa: number
 }
 
@@ -67,10 +69,15 @@ export function showChecklist(i: ChecklistInput): CheckItem[] {
       : { id: 'speaker', level: 'warn', text: 'Speaker delay 0 ms: measure it at the venue if the sound goes through a mixer, wireless or Bluetooth' },
   )
 
+  const p = i.showPeak
   items.push(
-    i.worstCaseMa > i.currentLimitMa
-      ? { id: 'power', level: 'warn', text: `Full white could draw ~${Math.round(i.worstCaseMa)} mA per costume (limit ${i.currentLimitMa} mA): lower the brightness cap` }
-      : { id: 'power', level: 'ok', text: `Power: worst case ~${Math.round(i.worstCaseMa)} mA per costume` },
+    p
+      ? p.peakMa > i.currentLimitMa
+        ? { id: 'power', level: 'warn', text: `Dancer ${p.dancer + 1}'s costume peaks at ~${Math.round(p.peakMa)} mA at ${fmt(p.peakAtMs)} (limit ${i.currentLimitMa} mA): lower the brightness cap or that cue` }
+        : { id: 'power', level: 'ok', text: `Power: busiest costume (Dancer ${p.dancer + 1}) averages ~${Math.round(p.avgMa)} mA, peaks ~${Math.round(p.peakMa)} mA` }
+      : i.worstCaseMa > i.currentLimitMa
+        ? { id: 'power', level: 'warn', text: `Full white could draw ~${Math.round(i.worstCaseMa)} mA per costume (limit ${i.currentLimitMa} mA): lower the brightness cap` }
+        : { id: 'power', level: 'ok', text: `Power: worst case ~${Math.round(i.worstCaseMa)} mA per costume` },
   )
 
   return items

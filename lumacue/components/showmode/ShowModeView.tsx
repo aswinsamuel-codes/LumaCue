@@ -10,13 +10,14 @@ import { FIRMWARE_SHOW_ID, useCostumeStore } from '@/store/useCostumeStore'
 import { useShowStore } from '@/store/useShowStore'
 import { useFirmwareStatus } from '@/lib/show/use-firmware-status'
 import { CURRENT_LIMIT_MA, showChecklist, worstCaseMilliamps } from '@/lib/show/checklist'
+import { busiestDancer } from '@/lib/show/power'
 
 /**
  * Show Mode: runs the show on the night. Nothing here edits the show, so a
  * stray click can't change it mid-performance. START starts the costumes (via
  * the base station), the music and the digital twin together.
  */
-export default function ShowModeView() {
+export default function ShowModeView({ active = true }: { active?: boolean }) {
   const project = useShowStore((s) => s.project)
   const {
     zones, brightness, baseConnected, baseKind, armed, running, beaconsOn, musicSync, baseDriftMs, baseDriftPpm, baseShowLengthMs, speakerDelayMs,
@@ -27,12 +28,19 @@ export default function ShowModeView() {
   // Which costumes carry the show as it is now (by the last firmware download for each dancer).
   const { perDancer: firmware, toUpdate: staleCount } = useFirmwareStatus()
 
+  // Real-show power for the checklist; only while this tab is showing (it renders every dancer's whole show).
+  const showPeak = useMemo(() => {
+    if (!active) return null
+    const { dancer, power } = busiestDancer(project, layout, brightness, 250)
+    return { dancer, ...power }
+  }, [active, project, layout, brightness])
+
   const checklist = showChecklist({
     baseKind, baseShowLengthMs, showLengthMs: project.lengthMs,
     firmware: firmware.map((f) => f.state),
     showAudioName: project.audioName, loadedAudioName: pb.audio?.name ?? null,
     musicSync, speakerDelayMs,
-    worstCaseMa: worstCaseMilliamps(layout.total, brightness), currentLimitMa: CURRENT_LIMIT_MA,
+    worstCaseMa: worstCaseMilliamps(layout.total, brightness), showPeak, currentLimitMa: CURRENT_LIMIT_MA,
   })
   const toFix = checklist.filter((c) => c.level === 'fail').length
 

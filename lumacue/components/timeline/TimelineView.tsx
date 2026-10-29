@@ -18,6 +18,7 @@ import { makeZip } from '@/lib/zip'
 import { benchFidelity, benchFingerprint, compileBenchCues, CUE_BUDGET } from '@/lib/show/bench'
 import type { BenchOutput } from '@/lib/show/bench'
 import { renderDancer } from '@/lib/show/render'
+import { runtimeHours, showPower } from '@/lib/show/power'
 import { useFirmwareStore } from '@/store/useFirmwareStore'
 import { useFirmwareStatus } from '@/lib/show/use-firmware-status'
 import { useShowStore } from '@/store/useShowStore'
@@ -135,8 +136,8 @@ export default function TimelineView({ active }: { active: boolean }) {
         return [r / z.count, g / z.count, b / z.count] as [number, number, number]
       })
     }, 100, arduino.output, zones.map((z) => z.leds))
-    return { cues: cues.length, notes, fidelity }
-  }, [arduino, project, zoneIds, layout, zones])
+    return { cues: cues.length, notes, fidelity, power: showPower(project, layout, arduino.dancer, brightness) }
+  }, [arduino, project, zoneIds, layout, zones, brightness])
 
   // Ready-to-upload sketches: the repo templates with this show, its length and the LED type filled in.
   const downloadFirmware = async (all: boolean) => {
@@ -346,6 +347,9 @@ export default function TimelineView({ active }: { active: boolean }) {
                   )}
                   <span className={preflight.cues > CUE_BUDGET ? 'text-red-300' : 'text-white/50'}>
                     {preflight.cues} cues (fits ≈ {CUE_BUDGET})
+                  </span>
+                  <span className={preflight.power.peakMa > 1000 ? 'text-yellow-300' : 'text-white/50'} title="From the preview's LED colours at the brightness cap (planning figure: ~20 mA per colour channel). The bank runtime assumes 60 % of its label is usable and ~100 mA for the controller">
+                    Power: avg {Math.round(preflight.power.avgMa)} mA · peak {Math.round(preflight.power.peakMa)} mA at {formatShowTime(preflight.power.peakAtMs)} · {preflight.power.mAh.toFixed(0)} mAh per run · 5,000 mAh bank ≈ {runtimeHours(preflight.power.avgMa, 5000).toFixed(1)} h
                   </span>
                   <button className="text-yellow-200/80 hover:text-yellow-100 underline-offset-2 hover:underline" onClick={() => { setCostumeView(arduino.output); setArduino(null) }}>
                     See it in Costume view →

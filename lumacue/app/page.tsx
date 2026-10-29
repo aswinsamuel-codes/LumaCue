@@ -100,7 +100,7 @@ export default function Home() {
               <TimelineView active={tab === 'studio'} />
             </div>
             <div role="tabpanel" className={tab === 'live' ? 'flex flex-col flex-1 min-h-0' : 'hidden'}>
-              <ShowModeView />
+              <ShowModeView active={tab === 'live'} />
             </div>
           </ShowPlaybackProvider>
         </div>
