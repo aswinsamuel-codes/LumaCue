@@ -1,3 +1,6 @@
+import { PLACEMENTS } from '@/lib/show/body'
+import type { Placement } from '@/lib/show/body'
+
 /**
  * LumaCue show file. A show is a list of clips on tracks: one track drives
  * every costume, and each dancer has their own track layered on top.
@@ -120,9 +123,35 @@ export function formatShowTime(ms: number) {
   return `${m}:${(s - m * 60).toFixed(1).padStart(4, '0')}`
 }
 
+/** Costume setup saved next to the show in a .lumacue.json file, so the file works on another laptop. */
+export interface SavedCostume {
+  zones: { id: string; name: string; leds: number; placement: Placement }[]
+  brightness: number
+}
+
 export type ParseResult =
-  | { ok: true; project: ShowProject; warnings: string[] }
+  | { ok: true; project: ShowProject; costume?: SavedCostume; warnings: string[] }
   | { ok: false; error: string }
+
+/** The show file: the show plus the costume setup it was made for. */
+export function showFileJson(project: ShowProject, costume: SavedCostume) {
+  return JSON.stringify({ ...project, costume }, null, 2)
+}
+
+const PLACEMENT_IDS = new Set<string>(PLACEMENTS.map((p) => p.id))
+
+function parseCostume(x: unknown): SavedCostume | null {
+  if (!x || typeof x !== 'object') return null
+  const r = x as Record<string, unknown>
+  if (!Array.isArray(r.zones)) return null
+  const zones = r.zones.filter(
+    (z): z is SavedCostume['zones'][number] =>
+      !!z && typeof z.id === 'string' && typeof z.name === 'string' && typeof z.leds === 'number' && z.leds >= 1 && z.leds <= 300 && PLACEMENT_IDS.has(z.placement),
+  )
+  if (!zones.length) return null
+  const brightness = typeof r.brightness === 'number' && r.brightness >= 5 && r.brightness <= 100 ? r.brightness : 25
+  return { zones: zones.map((z) => ({ id: z.id, name: z.name, leds: Math.round(z.leds), placement: z.placement })), brightness }
+}
 
 const EFFECT_IDS = new Set<string>(EFFECTS.map((e) => e.id))
 const HEX = /^#[0-9a-fA-F]{6}$/
@@ -199,9 +228,16 @@ export function parseShowProject(x: unknown): ParseResult {
   if (dropped) warnings.push(`${dropped} clip${dropped > 1 ? 's' : ''} couldn't be read and ${dropped > 1 ? 'were' : 'was'} left out`)
   if (repaired) warnings.push(`${repaired} clip${repaired > 1 ? 's' : ''} had missing or invalid settings and ${repaired > 1 ? 'were' : 'was'} repaired`)
 
+  let costume: SavedCostume | undefined
+  if (raw.costume !== undefined) {
+    costume = parseCostume(raw.costume) ?? undefined
+    if (!costume) warnings.push("The costume setup saved in the file couldn't be read; keeping this browser's")
+  }
+
   return {
     ok: true,
     warnings,
+    ...(costume ? { costume } : {}),
     project: {
       version: 1,
       name: typeof raw.name === 'string' && raw.name.trim() ? raw.name : 'Untitled show',

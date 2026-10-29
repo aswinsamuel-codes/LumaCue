@@ -185,7 +185,7 @@ export const useCostumeStore = create<CostumeState>((set, get) => ({
 
   setZones: (zones, label) => {
     set({ zones })
-    log('ACTION', `Costume set up${label ? ` as "${label}"` : ''}: ${zones.length} zones, ${zones.reduce((n, z) => n + z.leds, 0)} LEDs`)
+    log('ACTION', `Costume set up${label ? ` (${label})` : ''}: ${zones.length} zones, ${zones.reduce((n, z) => n + z.leds, 0)} LEDs`)
   },
 
   setBrightness: (v) => set({ brightness: v }),

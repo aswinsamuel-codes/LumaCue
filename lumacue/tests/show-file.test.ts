@@ -75,3 +75,27 @@ describe('parseShowProject', () => {
     }
   })
 })
+
+describe('show file with its costume setup', () => {
+  const costume = { zones: [{ id: 'a', name: 'Hand bands', leds: 24, placement: 'hands' as const }, { id: 'b', name: 'Arms', leds: 40, placement: 'arms' as const }], brightness: 40 }
+
+  it('round-trips the costume next to the show, without putting it in the show', async () => {
+    const { showFileJson } = await import('@/lib/show/model')
+    const p = starterProject()
+    const r = parseShowProject(JSON.parse(showFileJson(p, costume)))
+    expect(r.ok && r.costume).toEqual(costume)
+    expect(r.ok && r.project).toEqual(p)
+  })
+
+  it('keeps the browser setup when the saved costume is damaged', () => {
+    const r = parseShowProject({ ...starterProject(), costume: { zones: [{ id: 'a', leds: -1 }] } })
+    expect(r.ok && r.costume).toBeUndefined()
+    expect(r.ok && r.warnings.join(' ')).toMatch(/costume setup saved in the file couldn't be read/)
+  })
+
+  it('older files without a costume open as before', () => {
+    const r = parseShowProject(JSON.parse(JSON.stringify(starterProject())))
+    expect(r).toMatchObject({ ok: true, warnings: [] })
+    expect(r.ok && r.costume).toBeUndefined()
+  })
+})

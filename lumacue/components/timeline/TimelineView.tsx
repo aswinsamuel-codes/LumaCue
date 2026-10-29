@@ -8,7 +8,7 @@ import CostumeSetup from '@/components/timeline/CostumeSetup'
 import AutoCueDialog from '@/components/timeline/AutoCueDialog'
 import SectionsDialog from '@/components/timeline/SectionsDialog'
 import { buildLayout } from '@/lib/show/body'
-import { ALL_DANCERS, formatShowTime, parseShowProject } from '@/lib/show/model'
+import { ALL_DANCERS, formatShowTime, parseShowProject, showFileJson } from '@/lib/show/model'
 import { useShowPlayback } from '@/lib/show/playback'
 import { exportArduinoShow } from '@/lib/show/arduino-export'
 import { buildFirmware, buildFirmwareForAll } from '@/lib/show/firmware-bundle'
@@ -28,7 +28,7 @@ const btnOn = `${btn} bg-purple-500/25 border-purple-500/50 text-purple-100`
 
 export default function TimelineView({ active }: { active: boolean }) {
   const { project, selectedClipId, selectedTrack, selectTrack, deleteClip, duplicateClip, undo, redo, past, future, setProject, replaceProject } = useShowStore()
-  const { zones, brightness } = useCostumeStore()
+  const { zones, brightness, setZones, setBrightness } = useCostumeStore()
   const addLog = useDashboardStore((s) => s.addLog)
   const pb = useShowPlayback()
 
@@ -78,7 +78,7 @@ export default function TimelineView({ active }: { active: boolean }) {
   }
 
   const exportJson = () => {
-    const blob = new Blob([JSON.stringify(project, null, 2)], { type: 'application/json' })
+    const blob = new Blob([showFileJson(project, { zones, brightness })], { type: 'application/json' })
     const a = document.createElement('a')
     a.href = URL.createObjectURL(blob)
     a.download = `${project.name.replace(/[^\w-]+/g, '_') || 'show'}.lumacue.json`
@@ -93,6 +93,10 @@ export default function TimelineView({ active }: { active: boolean }) {
       const result = parseShowProject(json)
       if (!result.ok) throw new Error(result.error)
       replaceProject(result.project)
+      if (result.costume) {
+        setZones(result.costume.zones, 'from the show file')
+        setBrightness(result.costume.brightness)
+      }
       pb.seek(0)
       addLog('INFO', `Show · opened ${file.name}`)
       for (const w of result.warnings) addLog('WARN', `Show · ${file.name}: ${w}`)
