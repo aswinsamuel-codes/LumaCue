@@ -38,6 +38,8 @@ interface CostumeState {
   addZone: (name: string, leds: number) => void
   updateZone: (id: string, patch: Partial<Omit<CostumeZone, 'id'>>) => void
   deleteZone: (id: string) => void
+  /** Replace every zone, e.g. from a costume template. */
+  setZones: (zones: CostumeZone[], label?: string) => void
   setBrightness: (v: number) => void
   connectBase: (port?: SerialPortLike) => Promise<void>
   connectSimulator: () => Promise<void>
@@ -179,6 +181,11 @@ export const useCostumeStore = create<CostumeState>((set, get) => ({
     const zone = get().zones.find((z) => z.id === id)
     set((s) => ({ zones: s.zones.filter((z) => z.id !== id) }))
     if (zone) log('WARN', `${zone.name} removed`)
+  },
+
+  setZones: (zones, label) => {
+    set({ zones })
+    log('ACTION', `Costume set up${label ? ` as "${label}"` : ''}: ${zones.length} zones, ${zones.reduce((n, z) => n + z.leds, 0)} LEDs`)
   },
 
   setBrightness: (v) => set({ brightness: v }),

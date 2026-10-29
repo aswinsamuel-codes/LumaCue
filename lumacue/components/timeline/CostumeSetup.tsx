@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useCostumeStore } from '@/store/useCostumeStore'
 import { PLACEMENTS } from '@/lib/show/body'
 import type { Placement } from '@/lib/show/body'
+import { COSTUME_TEMPLATES } from '@/lib/show/templates'
 
 // Planning figures, not measurements: a WS2812B draws up to ~60 mA at full
 // white and roughly a third of that showing one colour.
@@ -13,7 +14,7 @@ const USABLE_FRACTION = 0.8   // conversion losses and cut-off, assumed
 const CURRENT_LIMIT_MA = 1000 // firmware cap proposed in the hardware review
 
 export default function CostumeSetup() {
-  const { zones, brightness, addZone, updateZone, deleteZone, setBrightness } = useCostumeStore()
+  const { zones, brightness, addZone, updateZone, deleteZone, setBrightness, setZones } = useCostumeStore()
   const [newName, setNewName] = useState('')
 
   const totalLeds = zones.reduce((n, z) => n + z.leds, 0)
@@ -30,6 +31,24 @@ export default function CostumeSetup() {
 
   return (
     <div className="rounded-xl border border-white/10 bg-white/5 backdrop-blur-sm p-4">
+      {/* Ready-made costumes: zone ids stay a, b, c… so sections keep pointing at the same parts */}
+      <div className="flex flex-wrap items-center gap-1.5 mb-3">
+        <span className="text-white/30 text-[10px] font-mono mr-1">TEMPLATE</span>
+        {COSTUME_TEMPLATES.map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setZones(t.zones.map((z) => ({ ...z })), t.label)}
+            title={`${t.hint} · ${t.zones.map((z) => `${z.name} ${z.leds}`).join(', ')}`}
+            className="text-[10px] px-2 py-1 rounded bg-white/5 border border-white/10 text-white/60 hover:bg-white/10 hover:text-white transition-all font-mono"
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+      {zones.length > 3 && (
+        <p className="text-yellow-300/70 text-[10px] font-mono mb-2">The bench firmware drives the first 3 zones only; the others show in the preview but stay dark on the Nano.</p>
+      )}
+
       {/* Zones of one costume */}
       <div className="flex flex-col gap-1.5 mb-3">
         {zones.map((zone, i) => {
