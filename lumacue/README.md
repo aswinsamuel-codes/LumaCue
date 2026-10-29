@@ -1,36 +1,55 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# LumaCue — LED dance show control
 
-## Getting Started
+*Powered by Aswin Samuel*
 
-First, run the development server:
+LumaCue designs light shows for LED costumes on a music timeline, previews them on a digital twin of every dancer, writes the costume firmware, and runs the show. Costumes **play the show from their own memory**. The laptop only starts them and keeps them on the music, so a radio drop or a laptop crash doesn't stop the show.
+
+## Run it
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run dev          # http://localhost:3000  (Chrome or Edge for USB to the base station)
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The login access code is in `components/LoginPage.tsx`. It's a client-side check only, not real security.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Workflow
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Step | Where | What |
+|---|---|---|
+| 1. Costume | Show Studio → **⚙ Costume setup** | Pick a **template** (Bench test, Hand bands + jacket, Full suit…) or set zones, LED counts and body positions. Set the brightness cap. It's saved in the browser and inside saved show files |
+| 2. Music | **♪ Load music** | Waveform, beat grid and energy sections. **✨ Auto cues** writes a first draft from the beat. Palette **Bench 5 mm** uses only colours the red/green bench LEDs can show |
+| 3. Edit | Timeline + Inspector | Clips on the *All costumes* track and on each dancer's track. Space plays, Ctrl+Z undoes, Ctrl+D duplicates |
+| 4. Sections | **§ Sections** | Parts of the show where some zones stay dark, e.g. *Hands only*, then *Full costume* |
+| 5. Check | Twin: **Preview → Costume: 5 mm → Costume: strip** | Shows what the bench firmware will really light |
+| 6. Firmware | **→ Costume firmware** | Preflight (how closely costume and preview match, cue budget, clips that will look different), then download **one dancer** or **all dancers** as a zip of Arduino sketches |
+| 7. Upload | Arduino IDE | `base_station.ino` to the base Nano, `dancer_NN/test_costume/test_costume.ino` to each costume. See `../firmware/bench_sync_test/README.md` |
+| 8. Run | **Show Mode** | **CONNECT USB** (or **SIMULATE** with no hardware) → ARM → START. *Start from* a section for rehearsals. **Music sync** keeps the base on the song; set **Speaker delay** for the venue's sound system. RESTART needs a 1 s hold; BLACKOUT is instant. The *Costume firmware* panel shows which costumes need re-flashing |
 
-## Learn More
+**Save file / Open** writes and reads a `.lumacue.json` file: the show, its sections and the costume setup. Damaged files are repaired where possible and refused with a clear message otherwise.
 
-To learn more about Next.js, take a look at the following resources:
+## Tests
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npm test             # unit + integration tests (Vitest)
+npm run check        # types + lint + tests: run before every commit
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- `tests/bench.test.ts` checks that the TypeScript port of the costume firmware (`lib/show/bench.ts`) still matches `test_costume.ino`. Change both together.
+- `tests/virtual-bench.test.ts` simulates the base station and costumes (clock drift, packet loss, late join) with the firmware's sync logic (`lib/sync/virtual-bench.ts`).
+- `tests/firmware-compile.test.ts` exports a 3-minute auto-cued show and compiles it for the Nano with `arduino-cli`. It runs only when the Arduino IDE 2 and the RF24 library are installed. The WS2812B build also needs FastLED (`ARDUINO_LIBRARIES=<folder with RF24 + FastLED>`).
 
-## Deploy on Vercel
+## Layout
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```
+app/                 Next.js page + /api/firmware (serves the sketches in ../firmware)
+components/          UI: timeline/ (Show Studio), showmode/, Hand Band dashboard
+lib/show/            model + show-file parsing, render (preview), bench (firmware port,
+                     export, preflight), analyze + autocue (music), templates
+lib/sync/            virtual-bench (protocol simulator), simulated-base (SIMULATE button)
+lib/base-station-serial.ts   Web Serial link to the base station
+store/               Zustand stores: show, costume/base station, firmware downloads, dashboard
+hardware/            older Raspberry Pi GPIO server for the Hand Band tab (legacy)
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Research, decisions and session reports: `../led-dance-research/`.
