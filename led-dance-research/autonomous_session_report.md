@@ -7,9 +7,9 @@
 ## 0. How the work was checked
 
 Every change went through the same loop: **build → `npm run check` (types + lint + tests) → browser smoke tests → commit**.
-- **Tests:** 0 at the start, **99 now** (+2 that need extra toolchains), all passing.
+- **Tests:** 0 at the start, **104 now** (+2 that need extra toolchains), all passing.
 - **Firmware:** both sketches were compiled with the Arduino IDE's own `arduino-cli` after every firmware change, plus an end-to-end test that exports a 3-min show and compiles it.
-- **UI:** checked in real Edge (headless Playwright) with 7 scripted walkthroughs and screenshots, including at 1366 × 768. They run before every UI commit and fail on any page or console error.
+- **UI:** checked in real Edge (headless Playwright) with 10 scripted walkthroughs and screenshots, including at 1366 × 768. They run before every UI commit and fail on any page or console error.
 - **Not tested on hardware:** nothing has been run on a real Nano/radio. Simulations are labelled as such.
 
 ## 1. What changed, by area
@@ -50,6 +50,9 @@ Every change went through the same loop: **build → `npm run check` (types + li
 - **Base show-length check:** the base reports `len=` in STATUS. A mismatch is flagged, because the base would end the show early.
 - **SIMULATE:** rehearse ARM / START / sync / BLACKOUT with no hardware.
 - **Start from a section** (base `S<ms>`): rehearse from the drop. The costume sketch needs no change.
+- **Clock drift meter for bench test T12:** with music sync off, Show Mode reads the base's own clock against the music every 5 s and shows ms and **ppm**. Against the simulator (+2000 ppm by design) it read +1994 to +2030 ppm.
+- **Bench test log:** mark T1–T12 (and ESP32 E1–E5) pass / partial / fail with notes, drop in the live T12 reading, and **copy a filled-in Results table** for the bench README.
+- With a speaker delay set, the Show Mode twin runs that much behind the laptop, like the costumes do.
 
 ### Show Studio
 - **Costume view:** the digital twin shows Preview → what the 5 mm LEDs will show → what the strip will show.
@@ -75,6 +78,7 @@ Every change went through the same loop: **build → `npm run check` (types + li
 
 ### Performance (10 dancers × 154 LEDs, 178 clips)
 Preview frame 0.27 ms · costume-view recompile ×10 3.9 ms · preflight 76 ms · song analysis 85 ms. No work needed.
+Cue budget at length: auto-cued shows of 3 / 5 / 8 / 12 min produce at most 566 / 920 / 912 / 920 cues for one dancer (budget 1,100), because colour steps widen automatically.
 
 ## 2. What you need to do (owner)
 
@@ -84,16 +88,24 @@ Preview frame 0.27 ms · costume-view recompile ×10 3.9 ms · preflight 76 ms �
 4. **At the venue**, measure the speaker delay: film a flash cue on a beat in slow motion.
 5. Review this branch, then tell me when to push.
 
-## 3. Problems I caused and fixed during the session
+## 3. Code review
+An automated code review of the whole session's diff found **10 issues**, and all were fixed in `db17407`. The most important:
+- If the base refused a start point, the app showed RUNNING while every costume stayed dark.
+- A right-click on START started the show.
+- A rehearsal start point outlived its deleted section, so the show would silently start mid-song.
+- Leaving Show Mode mid-hold could still restart the show.
+- Other issues: damaged browser storage could crash the page, there were two costume validators that disagreed, and a section past the show's end came back inverted.
+
+## 4. Problems I caused and fixed during the session
 - **A failing test was committed once** (`91dcc76`), because my shell chain treated "grep found the failure line" as success. Fixed in `19ebda8`. All later commits ran through `npm run check` first.
 - A regex was written with literal backspace characters by a shell escape and never matched. Caught by its test; edits now go through a helper that refuses control characters.
 - **Duplicate React keys** in the new Show Mode "Start from" list. Caught by the browser tests and fixed in `c3f42a8`.
 
-## 4. Still open / ideas for next
+## 5. Still open / ideas for next
 - **Compile the ESP32 sketches** once there is disk space for the esp32 core (or on another PC), then bench-test E1–E5.
 - Desktop vs web decision (`software_architecture.md`). Everything built today works as a local web app in Chrome/Edge.
 - Undo doesn't cover the show name, dancer count or length (it covers clips and sections).
 - The costume can't report back to the laptop. The firmware check tracks *downloads*, not what is actually on the boards.
 
-## 5. Commits
+## 6. Commits
 `git log --oneline pre-autonomous-session..lumacue/autonomous-session`
