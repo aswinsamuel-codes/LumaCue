@@ -7,6 +7,7 @@ import Inspector from '@/components/timeline/Inspector'
 import CostumeSetup from '@/components/timeline/CostumeSetup'
 import AutoCueDialog from '@/components/timeline/AutoCueDialog'
 import SectionsDialog from '@/components/timeline/SectionsDialog'
+import RehearsalVideo from '@/components/timeline/RehearsalVideo'
 import { buildLayout } from '@/lib/show/body'
 import { ALL_DANCERS, formatShowTime, parseShowProject, showFileJson } from '@/lib/show/model'
 import { cueSheetCsv } from '@/lib/show/cue-sheet'
@@ -50,6 +51,7 @@ export default function TimelineView({ active }: { active: boolean }) {
   const [setupOpen, setSetupOpen] = useState(false)
   const [autoOpen, setAutoOpen] = useState(false)
   const [sectionsOpen, setSectionsOpen] = useState(false)
+  const [videoOpen, setVideoOpen] = useState(false)
   const peaks = pb.audio
   const audioInput = useRef<HTMLInputElement>(null)
   const importInput = useRef<HTMLInputElement>(null)
@@ -176,6 +178,7 @@ export default function TimelineView({ active }: { active: boolean }) {
             bench={costumeView}
             onPickDancer={(d) => selectTrack(d)}
           />
+          {videoOpen && <RehearsalVideo timeMs={pb.timeMs} playing={pb.playing} onClose={() => setVideoOpen(false)} />}
           <div className="absolute top-2 right-2 flex gap-1">
             <button className={view === 'all' ? btnOn : btnIdle} onClick={() => setView('all')}>All dancers</button>
             <button className={view === 'single' ? btnOn : btnIdle} onClick={() => setView('single')}>Dancer {focusDancer + 1}</button>
@@ -187,6 +190,7 @@ export default function TimelineView({ active }: { active: boolean }) {
             >
               {costumeView === null ? 'Preview' : costumeView === '5mm' ? 'Costume: 5 mm' : 'Costume: strip'}
             </button>
+            <button className={videoOpen ? btnOn : btnIdle} onClick={() => setVideoOpen(!videoOpen)} title="Play a filmed rehearsal in step with the show">🎥 Video</button>
             <button className={btnIdle} onClick={() => setSetupOpen(true)} title="Zones, LED counts, body positions, brightness and battery">⚙ Costume setup</button>
           </div>
         </div>
