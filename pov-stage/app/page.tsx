@@ -7,12 +7,16 @@ import PresetPanel from '@/components/PresetPanel'
 import GlobalControlBar from '@/components/GlobalControlBar'
 import LogPanel from '@/components/LogPanel'
 import LoginPage from '@/components/LoginPage'
+import TabBar from '@/components/TabBar'
+import type { ShowTab } from '@/components/TabBar'
+import CostumeView from '@/components/costume/CostumeView'
 import { useDashboardStore } from '@/store/useDashboardStore'
 
 export default function Home() {
   const { zones, authenticated, addZone, deleteZone, initializeWebSocket } = useDashboardStore()
   const [showAddZone, setShowAddZone] = useState(false)
   const [newZoneName, setNewZoneName] = useState('')
+  const [tab, setTab] = useState<ShowTab>('band')
 
   // Initialize WebSocket connection after authentication
   useEffect(() => {
@@ -43,42 +47,49 @@ export default function Home() {
       </div>
 
       <TopBar />
+      <TabBar active={tab} onChange={setTab} />
 
       <main className="flex flex-1 gap-3 p-3 overflow-hidden relative">
         {/* LEFT PANEL */}
         <div className="flex flex-col gap-3 flex-1 overflow-y-auto pr-1">
-          {/* Zone Cards */}
-          <div>
-            <div className="flex items-center justify-between mb-2 px-1">
-              <p className="text-white/20 text-[10px] font-mono tracking-widest">ZONE CONTROL</p>
-              <button
-                onClick={() => setShowAddZone(true)}
-                className="text-[10px] px-2 py-1 rounded bg-blue-500/20 border border-blue-500/30 text-blue-400 hover:bg-blue-500/30 transition-all font-mono"
-              >
-                + ADD ZONE
-              </button>
+          {/* Both tabs stay mounted so a running preset or show keeps going when you switch */}
+          <div role="tabpanel" className={tab === 'band' ? 'flex flex-col gap-3' : 'hidden'}>
+            {/* Zone Cards */}
+            <div>
+              <div className="flex items-center justify-between mb-2 px-1">
+                <p className="text-white/20 text-[10px] font-mono tracking-widest">HAND BAND ZONES</p>
+                <button
+                  onClick={() => setShowAddZone(true)}
+                  className="text-[10px] px-2 py-1 rounded bg-blue-500/20 border border-blue-500/30 text-blue-400 hover:bg-blue-500/30 transition-all font-mono"
+                >
+                  + ADD ZONE
+                </button>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {zones.map((zone) => (
+                  <ZoneCard key={zone.id} zone={zone} onDelete={() => deleteZone(zone.id)} />
+                ))}
+              </div>
             </div>
-            <div className="grid grid-cols-3 gap-2">
-              {zones.map((zone) => (
-                <ZoneCard key={zone.id} zone={zone} onDelete={() => deleteZone(zone.id)} />
-              ))}
+
+            {/* Color Panel */}
+            <div>
+              <p className="text-white/20 text-[10px] font-mono tracking-widest mb-2 px-1">COLOR CONTROL</p>
+              <ColorPanel />
             </div>
-          </div>
 
-          {/* Color Panel */}
-          <div>
-            <p className="text-white/20 text-[10px] font-mono tracking-widest mb-2 px-1">COLOR CONTROL</p>
-            <ColorPanel />
-          </div>
+            {/* Preset Panel */}
+            <div>
+              <p className="text-white/20 text-[10px] font-mono tracking-widest mb-2 px-1">PRESETS & TIMERS</p>
+              <PresetPanel />
+            </div>
 
-          {/* Preset Panel */}
-          <div>
-            <p className="text-white/20 text-[10px] font-mono tracking-widest mb-2 px-1">PRESETS & TIMERS</p>
-            <PresetPanel />
+            {/* Global Control Bar */}
+            <GlobalControlBar />
           </div>
-
-          {/* Global Control Bar */}
-          <GlobalControlBar />
+          <div role="tabpanel" className={tab === 'costume' ? 'flex flex-col gap-3' : 'hidden'}>
+            <CostumeView />
+          </div>
         </div>
 
         {/* RIGHT PANEL — Compact Log */}

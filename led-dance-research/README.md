@@ -14,6 +14,7 @@
 | [decision_log.md](decision_log.md) | Started |
 | [software_architecture.md](software_architecture.md) | Draft for review — platform decision open |
 | [hardware_components_review.md](hardware_components_review.md) | Done (analysis only; parts untested, prices unverified) |
+| [handband_and_costume_layers.md](handband_and_costume_layers.md) | Idea for review: hand-band + costume layers and show sections; Light Dance Pro review |
 | [../firmware/bench_sync_test/](../firmware/bench_sync_test/README.md) | Base + test-costume firmware, wiring, test plan T1–T11. Compiles for Nano; **not yet run on hardware** |
 
 ## Not started (created when the work is actually done)

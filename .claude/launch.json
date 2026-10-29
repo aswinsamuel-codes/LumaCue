@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "lumacue-ui",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "pov-stage", "run", "dev"],
+      "port": 3000
+    }
+  ]
+}
