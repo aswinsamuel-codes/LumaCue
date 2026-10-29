@@ -98,6 +98,7 @@ Base commands:
 | `b` or `BLACKOUT` | All off, show stopped |
 | `n` or `BEACONS` | Turns time beacons on/off (drift test) |
 | `?` or `STATUS` | Prints state |
+| `T<ms>` (e.g. `T60000`) | Music sync: "the laptop's music is at <ms>". Re-anchors the show clock to the music and prints `sync err_ms=<how far off the base was>`. LumaCue Show Mode sends it every 2 s while running ("Music sync" checkbox) |
 
 The demo show (30 s, stored on the costume):
 
@@ -136,6 +137,7 @@ Record results in the table in section 5. Don't skip a failed test; write down w
 | T9 | Blackout | Start, type `b` at ~12 s | Costume goes dark immediately and stays dark |
 | T10 | Range | Repeat T3 at 5 m, 10 m and 20 m, with bodies between the radios | `dropped~` stays low and the show still starts. Note the distance where it fails |
 | T11 | Strip mode | Repeat T3–T6 with `MODE_STRIP` and 1 m of WS2812B | Same pass criteria. Check the strip and wires aren't hot |
+| T12 | Base clock vs music | Load a 3-min song in LumaCue, START from Show Mode with **Music sync off**, then STATUS (`?`) at the end and compare `t=` with the music time; repeat with Music sync **on** and read "base vs music" in Show Mode | Off: note the drift (this is the base resonator error, expected up to ~0.5 %). On: readout stays within ±20 ms |
 
 ## 5. Results
 
@@ -152,6 +154,7 @@ Record results in the table in section 5. Don't skip a failed test; write down w
 | T9 | | | | |
 | T10 | | | | |
 | T11 | | | | |
+| T12 | | | | |
 
 ## 6. Troubleshooting
 

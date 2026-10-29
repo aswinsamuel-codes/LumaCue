@@ -1,6 +1,8 @@
 import { create } from 'zustand'
 import { BaseStationSerial, findKnownPort, isWebSerialSupported, onKnownPortPlugged } from '@/lib/base-station-serial'
-import type { BaseCommand, SerialPortLike } from '@/lib/base-station-serial'
+import type { BaseCommand, BaseLink, SerialPortLike } from '@/lib/base-station-serial'
+import { SimulatedBase } from '@/lib/sync/simulated-base'
+import { useShowStore } from '@/store/useShowStore'
 import { useDashboardStore } from '@/store/useDashboardStore'
 import type { LogType } from '@/store/useDashboardStore'
 import { PLACEMENTS } from '@/lib/show/body'
@@ -17,6 +19,11 @@ interface CostumeState {
   zones: CostumeZone[]
   brightness: number          // % of full, applied in costume firmware
   baseConnected: boolean
+  baseKind: 'usb' | 'simulator' | null
+  /** Keep the base station's show clock on the music (T command every 2 s). */
+  musicSync: boolean
+  /** Base clock minus music at the last sync, ms (+ = base was ahead). */
+  baseDriftMs: number | null
   armed: boolean
   running: boolean
   beaconsOn: boolean
@@ -25,6 +32,10 @@ interface CostumeState {
   deleteZone: (id: string) => void
   setBrightness: (v: number) => void
   connectBase: (port?: SerialPortLike) => Promise<void>
+  connectSimulator: () => Promise<void>
+  setMusicSync: (on: boolean) => void
+  /** Tell the base where the music is now. Called by Show Mode while running. */
+  syncToMusic: (musicMs: number) => void
   watchBaseStation: () => void
   disconnectBase: () => Promise<void>
   arm: () => void
@@ -45,8 +56,39 @@ function log(type: LogType, message: string) {
   useDashboardStore.getState().addLog(type, `Costume · ${message}`)
 }
 
-const base = new BaseStationSerial()
+const usbBase = new BaseStationSerial()
+let base: BaseLink = usbBase
 let watching = false
+
+/** Handles a line printed by the base station (real or simulated). */
+function onBaseLine(line: string) {
+  const store = useCostumeStore.getState()
+  const sync = /^sync err_ms=(-?\d+)$/.exec(line)
+  if (sync) {
+    const err = Number(sync[1])
+    useCostumeStore.setState({ baseDriftMs: err })
+    // Only big corrections are worth a log line; small ones are routine.
+    if (Math.abs(err) >= 20) log('WARN', `Base clock was ${err > 0 ? '+' : ''}${err} ms off the music; corrected`)
+    return
+  }
+  if (/^unknown command: T\d+/.test(line)) {
+    if (store.musicSync) log('WARN', 'This base station firmware has no music sync (T command). Upload the latest base_station.ino; sync turned off')
+    useCostumeStore.setState({ musicSync: false })
+    return
+  }
+  log('INFO', `Base: ${line}`)
+  if (line === 'show ended') store.showEnded()
+}
+
+function onBaseClosed(unexpected: boolean) {
+  useCostumeStore.setState({ baseConnected: false, baseKind: null, baseDriftMs: null })
+  log(
+    unexpected ? 'ERROR' : 'INFO',
+    unexpected
+      ? 'Base station USB lost. Costumes keep playing their stored show; plug it back in to reconnect automatically'
+      : 'Base station disconnected',
+  )
+}
 
 async function sendToBase(command: BaseCommand) {
   if (!base.isConnected()) return
@@ -66,6 +108,9 @@ export const useCostumeStore = create<CostumeState>((set, get) => ({
   ],
   brightness: 25,
   baseConnected: false,
+  baseKind: null,
+  musicSync: true,
+  baseDriftMs: null,
   armed: false,
   running: false,
   beaconsOn: true,
@@ -96,25 +141,11 @@ export const useCostumeStore = create<CostumeState>((set, get) => ({
     }
     if (base.isConnected()) return
     try {
-      await base.connect(
-        (line) => {
-          log('INFO', `Base: ${line}`)
-          if (line === 'show ended') get().showEnded()
-        },
-        (unexpected) => {
-          set({ baseConnected: false })
-          log(
-            unexpected ? 'ERROR' : 'INFO',
-            unexpected
-              ? 'Base station USB lost. Costumes keep playing their stored show; plug it back in to reconnect automatically'
-              : 'Base station disconnected',
-          )
-        },
-        port,
-      )
+      base = usbBase
+      await base.connect(onBaseLine, onBaseClosed, port)
       // Opening the port resets the Nano, so the base starts fresh: idle, beacons on.
       if (get().running) log('WARN', 'Base station restarted: its show clock was reset. Costumes keep their own clock')
-      set({ baseConnected: true, beaconsOn: true, armed: false, running: false })
+      set({ baseConnected: true, baseKind: 'usb', beaconsOn: true, armed: false, running: false, baseDriftMs: null })
       log('SYNC', `Base station connected (USB${port ? ', automatic' : ''})`)
     } catch (e) {
       const msg = (e as Error).message
@@ -124,6 +155,25 @@ export const useCostumeStore = create<CostumeState>((set, get) => ({
     }
   },
 
+  connectSimulator: async () => {
+    if (base.isConnected()) return
+    base = new SimulatedBase({ showLengthMs: () => useShowStore.getState().project.lengthMs })
+    await base.connect(onBaseLine, onBaseClosed)
+    set({ baseConnected: true, baseKind: 'simulator', beaconsOn: true, armed: false, running: false, baseDriftMs: null })
+    log('SYNC', 'Simulated base station connected (no hardware). Its clock runs 0.2 % fast on purpose')
+  },
+
+  setMusicSync: (on) => {
+    set({ musicSync: on, baseDriftMs: on ? get().baseDriftMs : null })
+    log('INFO', `Music sync ${on ? 'on' : 'off: the base station keeps its own clock'}`)
+  },
+
+  syncToMusic: (musicMs) => {
+    const { running, baseConnected, musicSync } = get()
+    if (!running || !baseConnected || !musicSync) return
+    void sendToBase(`T${Math.max(0, Math.round(musicMs))}`)
+  },
+
   watchBaseStation: () => {
     if (watching || !isWebSerialSupported()) return
     watching = true
@@ -131,7 +181,7 @@ export const useCostumeStore = create<CostumeState>((set, get) => ({
     void findKnownPort().then((port) => { if (port) void get().connectBase(port) })
     onKnownPortPlugged((port) => {
       log('INFO', 'Base station plugged in')
-      void get().connectBase(port)
+      if (!base.isConnected()) void get().connectBase(port)
     })
   },
 

@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import StageCanvas from '@/components/timeline/StageCanvas'
 import { buildLayout } from '@/lib/show/body'
 import { formatShowTime } from '@/lib/show/model'
@@ -16,8 +16,8 @@ import { useShowStore } from '@/store/useShowStore'
 export default function ShowModeView() {
   const project = useShowStore((s) => s.project)
   const {
-    zones, brightness, baseConnected, armed, running, beaconsOn,
-    connectBase, disconnectBase, arm, start, blackout, toggleBeacons, showEnded,
+    zones, brightness, baseConnected, baseKind, armed, running, beaconsOn, musicSync, baseDriftMs,
+    connectBase, connectSimulator, disconnectBase, arm, start, blackout, toggleBeacons, showEnded, setMusicSync, syncToMusic,
   } = useCostumeStore()
   const pb = useShowPlayback()
   const layout = useMemo(() => buildLayout(zones), [zones])
@@ -31,6 +31,30 @@ export default function ShowModeView() {
   const handleBlackout = () => {
     blackout()
     pb.pause()
+  }
+
+  // Keep the base station's clock on the music: it runs on its own resonator,
+  // which can be off by ~0.1–0.5 % (up to ~1 s over a 3-minute song).
+  const musicNow = useRef(pb.timeMs)
+  useEffect(() => { musicNow.current = pb.timeMs }, [pb.timeMs])
+  useEffect(() => {
+    if (!running || !musicSync || !baseConnected) return
+    const id = setInterval(() => syncToMusic(musicNow.current), 2000)
+    return () => clearInterval(id)
+  }, [running, musicSync, baseConnected, syncToMusic])
+
+  // RESTART during a show needs a 1 s hold, so a stray click can't restart every costume.
+  const [holding, setHolding] = useState(false)
+  const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pressStart = () => {
+    if (!running) return handleStart()
+    setHolding(true)
+    holdTimer.current = setTimeout(() => { setHolding(false); handleStart() }, 1000)
+  }
+  const releaseStart = () => {
+    if (holdTimer.current) clearTimeout(holdTimer.current)
+    holdTimer.current = null
+    setHolding(false)
   }
 
   // The show clock ran to the end: the costumes have finished too.
@@ -64,17 +88,37 @@ export default function ShowModeView() {
               <div className="min-w-0">
                 <p className="text-white text-sm font-semibold">Base station</p>
                 <p className="text-white/30 text-[11px] font-mono truncate">
-                  {baseConnected ? 'USB connected' : isWebSerialSupported() ? 'Not connected · simulation only' : 'Needs Chrome or Edge · simulation only'}
+                  {baseKind === 'simulator' ? 'Simulator · no hardware' : baseConnected ? 'USB connected' : isWebSerialSupported() ? 'Not connected · preview only' : 'Needs Chrome or Edge · preview only'}
                 </p>
               </div>
             </div>
-            <button
-              onClick={() => (baseConnected ? disconnectBase() : connectBase())}
-              disabled={!baseConnected && !isWebSerialSupported()}
-              className="shrink-0 text-[10px] px-3 py-1.5 rounded bg-blue-500/20 border border-blue-500/30 text-blue-400 hover:bg-blue-500/30 transition-all font-mono disabled:opacity-30 disabled:cursor-not-allowed"
-            >
-              {baseConnected ? 'DISCONNECT' : 'CONNECT USB'}
-            </button>
+            <div className="flex gap-1 shrink-0">
+              {!baseConnected && (
+                <button
+                  onClick={() => void connectSimulator()}
+                  title="Rehearse Show Mode with a pretend base station (no hardware)"
+                  className="text-[10px] px-2 py-1.5 rounded bg-white/5 border border-white/10 text-white/50 hover:bg-white/10 transition-all font-mono"
+                >
+                  SIMULATE
+                </button>
+              )}
+              <button
+                onClick={() => (baseConnected ? disconnectBase() : connectBase())}
+                disabled={!baseConnected && !isWebSerialSupported()}
+                className="text-[10px] px-3 py-1.5 rounded bg-blue-500/20 border border-blue-500/30 text-blue-400 hover:bg-blue-500/30 transition-all font-mono disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                {baseConnected ? 'DISCONNECT' : 'CONNECT USB'}
+              </button>
+            </div>
+          </div>
+          <div className="mt-3 flex items-center justify-between gap-2 text-[11px] font-mono">
+            <label className="flex items-center gap-2 text-white/50 cursor-pointer" title="Every 2 s, tell the base station where the music is, so the costumes follow the song and not the base's own clock">
+              <input type="checkbox" checked={musicSync} onChange={(e) => setMusicSync(e.target.checked)} className="accent-purple-500" />
+              Music sync
+            </label>
+            <span className={baseDriftMs === null ? 'text-white/25' : Math.abs(baseDriftMs) >= 20 ? 'text-yellow-300' : 'text-green-300/80'} title="How far the base station's clock had drifted from the music at the last sync">
+              {baseDriftMs === null ? 'base vs music: –' : `base vs music: ${baseDriftMs > 0 ? '+' : ''}${baseDriftMs} ms`}
+            </span>
           </div>
         </div>
 
@@ -104,10 +148,20 @@ export default function ShowModeView() {
             ARM
           </button>
           <button
-            onClick={handleStart}
-            className="py-5 rounded-lg bg-green-500/25 border border-green-500/50 text-green-200 text-xl font-bold hover:bg-green-500/35 transition-all active:scale-95"
+            onPointerDown={pressStart}
+            onPointerUp={releaseStart}
+            onPointerLeave={releaseStart}
+            onKeyDown={(e) => { if (!running && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); handleStart() } }}
+            title={running ? 'Hold for 1 second to restart the show from the top' : 'Start the costumes, the music and the preview together'}
+            className="relative overflow-hidden py-5 rounded-lg bg-green-500/25 border border-green-500/50 text-green-200 text-xl font-bold hover:bg-green-500/35 transition-all active:scale-95 select-none"
           >
-            {running ? '↻ RESTART' : '▶ START'}
+            {running && (
+              <span
+                className="absolute inset-y-0 left-0 bg-green-400/30"
+                style={{ width: holding ? '100%' : '0%', transition: holding ? 'width 1s linear' : 'none' }}
+              />
+            )}
+            <span className="relative">{running ? (holding ? 'KEEP HOLDING…' : '↻ HOLD TO RESTART') : '▶ START'}</span>
           </button>
           <button
             onClick={handleBlackout}

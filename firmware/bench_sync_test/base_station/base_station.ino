@@ -11,6 +11,8 @@
 //   b / BLACKOUT   all costumes off, stop the show
 //   n / BEACONS    toggle time beacons on/off (drift test)
 //   ? / STATUS     print state
+//   T<ms>          music sync: the laptop's music is at <ms>; re-anchor the
+//                  show clock to it (LumaCue sends this every 2 s while playing)
 // Optional: a push button from D2 to GND toggles START / BLACKOUT.
 //
 // A reference LED on D3 blinks on the show clock (on for the first 500 ms of
@@ -85,6 +87,17 @@ void cmdBlackout() {
   Serial.println(F("BLACKOUT sent"));
 }
 
+// The laptop plays the music on its own clock. This board's resonator can be
+// off by ~0.1-0.5 %, which over a 3-minute song is up to ~1 s, so LumaCue
+// tells the base where the music is and the beacons carry the corrected time.
+void cmdMusicSync(uint32_t musicMs) {
+  if (!running) return;
+  long err = (long)showMs() - (long)musicMs;  // + means the base was ahead of the music
+  runStartMillis = millis() - musicMs;
+  if (lastBeaconMs > musicMs) lastBeaconMs = musicMs;  // clock went back: keep beaconing
+  Serial.print(F("sync err_ms=")); Serial.println(err);
+}
+
 void cmdStatus() {
   Serial.print(F("show=")); Serial.print(SHOW_ID);
   Serial.print(F(" run=")); Serial.print(runId);
@@ -102,6 +115,7 @@ void handleLine(const char* s) {
     Serial.print(F("beacons ")); Serial.println(beaconsEnabled ? F("on") : F("off"));
   }
   else if (!strcmp(s, "?") || !strcasecmp(s, "STATUS")) cmdStatus();
+  else if ((s[0] == 'T' || s[0] == 't') && isdigit(s[1])) cmdMusicSync(strtoul(s + 1, NULL, 10));
   else if (s[0]) { Serial.print(F("unknown command: ")); Serial.println(s); }
 }
 

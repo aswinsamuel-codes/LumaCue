@@ -1,7 +1,8 @@
 /**
  * USB serial link to the LumaCue base station (firmware/bench_sync_test/base_station)
  * using Web Serial. Works in Chrome / Edge on desktop only.
- * The base takes line commands: ARM, START, BLACKOUT, BEACONS, STATUS.
+ * The base takes line commands: ARM, START, BLACKOUT, BEACONS, STATUS, and
+ * T<ms> (music sync: where the laptop's music is now).
  */
 
 // Minimal Web Serial typings (not in the default TS DOM lib).
@@ -20,13 +21,21 @@ function serial() {
   return (navigator as Navigator & { serial: SerialLike }).serial
 }
 
-export type BaseCommand = 'ARM' | 'START' | 'BLACKOUT' | 'BEACONS' | 'STATUS'
+export type BaseCommand = 'ARM' | 'START' | 'BLACKOUT' | 'BEACONS' | 'STATUS' | `T${number}`
+
+/** What the store needs from a base station: the real one over USB, or the simulator. */
+export interface BaseLink {
+  isConnected(): boolean
+  connect(onLine: (line: string) => void, onClosed: (unexpected: boolean) => void, port?: SerialPortLike): Promise<void>
+  send(command: BaseCommand): Promise<void>
+  disconnect(): Promise<void>
+}
 
 export function isWebSerialSupported() {
   return typeof navigator !== 'undefined' && 'serial' in navigator
 }
 
-export class BaseStationSerial {
+export class BaseStationSerial implements BaseLink {
   private port: SerialPortLike | null = null
   private reader: ReadableStreamDefaultReader<Uint8Array> | null = null
   private closing = false
