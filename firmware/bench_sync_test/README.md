@@ -138,7 +138,7 @@ Record results in the table in section 5. Don't skip a failed test; write down w
 | T9 | Blackout | Start, type `b` at ~12 s | Costume goes dark immediately and stays dark |
 | T10 | Range | Repeat T3 at 5 m, 10 m and 20 m, with bodies between the radios | `dropped~` stays low and the show still starts. Note the distance where it fails |
 | T11 | Strip mode | Repeat T3–T6 with `MODE_STRIP` and 1 m of WS2812B | Same pass criteria. Check the strip and wires aren't hot |
-| T12 | Base clock vs music | Load a 3-min song in LumaCue, START from Show Mode with **Music sync off**, then STATUS (`?`) at the end and compare `t=` with the music time; repeat with Music sync **on** and read "base vs music" in Show Mode | Off: note the drift (this is the base resonator error, expected up to ~0.5 %). On: readout stays within ±20 ms |
+| T12 | Base clock vs music | Load a 3-min song in LumaCue and START from Show Mode with **Music sync off**. Show Mode asks the base for its time every 5 s and shows "base vs music: ±X ms (±Y ppm, measuring)". Note the ppm near the end. Then repeat with Music sync **on** | Off: record the ppm (this is the base's clock error; a few hundred to a few thousand ppm is plausible for a resonator). On: readout stays within ±20 ms |
 
 ## 5. Results
 

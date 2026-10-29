@@ -101,3 +101,23 @@ describe('base refuses the start point', () => {
     expect(logs().some((m) => m.includes('did NOT start'))).toBe(true)
   })
 })
+
+describe('drift measurement with music sync off (bench test T12)', () => {
+  it('asks the base for its show time and reports the difference, quietly', async () => {
+    const s = useCostumeStore.getState()
+    await s.disconnectBase()
+    await s.connectSimulator()
+    s.setMusicSync(false)
+    s.start()
+    await new Promise((r) => setTimeout(r, 120))
+    const before = useDashboardStore.getState().logs.length
+    useCostumeStore.getState().measureDrift(100) // pretend the music says 100 ms
+    await flush()
+    await flush()
+    const d = useCostumeStore.getState().baseDriftMs
+    expect(d).not.toBeNull()
+    expect(Math.abs(d! - 20)).toBeLessThan(80) // simulator ran ~120 ms
+    expect(useDashboardStore.getState().logs.slice(before).some((l) => l.message.includes('show=1'))).toBe(false)
+    useCostumeStore.getState().setMusicSync(true)
+  })
+})

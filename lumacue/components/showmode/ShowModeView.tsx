@@ -18,8 +18,8 @@ import { CURRENT_LIMIT_MA, showChecklist, worstCaseMilliamps } from '@/lib/show/
 export default function ShowModeView() {
   const project = useShowStore((s) => s.project)
   const {
-    zones, brightness, baseConnected, baseKind, armed, running, beaconsOn, musicSync, baseDriftMs, baseShowLengthMs, speakerDelayMs,
-    connectBase, connectSimulator, disconnectBase, arm, start, blackout, toggleBeacons, showEnded, setMusicSync, syncToMusic, setSpeakerDelay,
+    zones, brightness, baseConnected, baseKind, armed, running, beaconsOn, musicSync, baseDriftMs, baseDriftPpm, baseShowLengthMs, speakerDelayMs,
+    connectBase, connectSimulator, disconnectBase, arm, start, blackout, toggleBeacons, showEnded, setMusicSync, syncToMusic, setSpeakerDelay, measureDrift,
   } = useCostumeStore()
   const pb = useShowPlayback()
   const layout = useMemo(() => buildLayout(zones), [zones])
@@ -82,6 +82,13 @@ export default function ShowModeView() {
     const id = setInterval(() => syncToMusic(musicNow()), 2000)
     return () => clearInterval(id)
   }, [running, musicSync, baseConnected, syncToMusic, musicNow])
+
+  // Music sync off (bench test T12): measure how far the base's own clock drifts from the music.
+  useEffect(() => {
+    if (!running || musicSync || !baseConnected) return
+    const id = setInterval(() => measureDrift(musicNow()), 5000)
+    return () => clearInterval(id)
+  }, [running, musicSync, baseConnected, measureDrift, musicNow])
 
   // RESTART during a show needs a 1 s hold, so a stray click can't restart every costume.
   const [holding, setHolding] = useState(false)
@@ -179,7 +186,9 @@ export default function ShowModeView() {
           </div>
           <div className="mt-2 flex items-center justify-end text-[11px] font-mono">
             <span className={baseDriftMs === null ? 'text-white/25' : Math.abs(baseDriftMs) >= 20 ? 'text-yellow-300' : 'text-green-300/80'} title="How far the base station's clock had drifted from the music at the last sync">
-              {baseDriftMs === null ? 'base vs music: –' : `base vs music: ${baseDriftMs > 0 ? '+' : ''}${baseDriftMs} ms`}
+              {baseDriftMs === null
+                ? 'base vs music: –'
+                : `base vs music: ${baseDriftMs > 0 ? '+' : ''}${baseDriftMs} ms${!musicSync && baseDriftPpm !== null ? ` (${baseDriftPpm > 0 ? '+' : ''}${baseDriftPpm} ppm, measuring)` : ''}`}
             </span>
           </div>
         </div>
