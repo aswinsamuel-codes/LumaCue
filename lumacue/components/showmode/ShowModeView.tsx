@@ -123,7 +123,8 @@ export default function ShowModeView() {
     <div className="flex gap-3 h-full min-h-0">
       {/* View-only digital twin */}
       <div className="relative flex-1 min-w-0 rounded-xl border border-white/10 overflow-hidden">
-        <StageCanvas project={project} layout={layout} timeMs={pb.timeMs} view="all" focusDancer={-1} brightness={brightness} xray={false} dark={!running} />
+        {/* The costumes run speakerDelayMs behind the laptop's music, so the twin does too. */}
+        <StageCanvas project={project} layout={layout} timeMs={Math.max(0, pb.timeMs - speakerDelayMs)} view="all" focusDancer={-1} brightness={brightness} xray={false} dark={!running} />
         <p className="absolute bottom-2 left-3 text-white/25 text-[10px] font-mono">
           Simulation of &quot;{project.name}&quot; · dark until START
         </p>
