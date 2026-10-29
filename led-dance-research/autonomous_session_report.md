@@ -7,9 +7,10 @@
 ## 0. How the work was checked
 
 Every change went through the same loop: **build → `npm run check` (types + lint + tests) → browser smoke tests → commit**.
-- **Tests:** 0 at the start, **104 now** (+2 that need extra toolchains), all passing.
+- **Tests:** 0 at the start, **112 now** (+2 that need extra toolchains), all passing.
 - **Firmware:** both sketches were compiled with the Arduino IDE's own `arduino-cli` after every firmware change, plus an end-to-end test that exports a 3-min show and compiles it.
-- **UI:** checked in real Edge (headless Playwright) with 10 scripted walkthroughs and screenshots, including at 1366 × 768. They run before every UI commit and fail on any page or console error.
+- **UI:** checked in real Edge (headless Playwright) with 12 scripted walkthroughs and screenshots, including at 1366 × 768. They run before every UI commit and fail on any page or console error.
+- **Full pipeline with real audio:** a WAV file loaded through the UI was decoded by the browser (detected 120.0 BPM exactly), auto-cued on the Bench palette, downloaded as an all-dancers zip, and dancer 2's sketch compiled for the Nano (22 % flash).
 - **Not tested on hardware:** nothing has been run on a real Nano/radio. Simulations are labelled as such.
 
 ## 1. What changed, by area
@@ -62,6 +63,8 @@ Every change went through the same loop: **build → `npm run check` (types + li
 - **Bench 5 mm** auto-cue palette: red, green and yellow only, no rainbow. On 5 mm LEDs a chase now runs *across* the three LEDs (it was stuck on).
 - **Spread across dancers** (the hand-sweep look): turns a clip into a staggered copy per dancer, D1 → last, last → D1, centre out or edges in. One undo step.
 - The **→ Costume firmware** button shows how many costumes need new firmware.
+- **Cue sheet** export: every cue in show order with its section, who, effect, colour and zones, as a CSV to print for rehearsals.
+- **Battery planning from the real show:** the export preflight shows each dancer's average/peak current (and when the peak happens), mAh per run and power-bank runtime. The Show Mode checklist judges power by the busiest costume's real peak instead of "everything full white".
 
 ### ESP32 costume + base (the planned final controller), ahead of the hardware
 - `firmware/esp32/costume` and `firmware/esp32/base`: ESP-NOW broadcast instead of NRF24, WS2812B strip, 1 A current cap, BOOT button = START/BLACKOUT on the base.
@@ -89,7 +92,9 @@ Cue budget at length: auto-cued shows of 3 / 5 / 8 / 12 min produce at most 566 
 5. Review this branch, then tell me when to push.
 
 ## 3. Code review
-An automated code review of the whole session's diff found **10 issues**, and all were fixed in `db17407`. The most important:
+Each review pass covered the code added since the previous one.
+- **Second pass:** another 10 issues, all fixed in `558bdd3`. Typing a note on an untested row recorded it as *Pass*, and re-clicking a result deleted its notes. Drift readings could pick up stale replies and counted the USB round trip as drift. With a speaker delay the show ended before the costumes did. The music kept playing when the base refused a start.
+- **First pass** over the whole session's diff found **10 issues**, all fixed in `db17407`. The most important:
 - If the base refused a start point, the app showed RUNNING while every costume stayed dark.
 - A right-click on START started the show.
 - A rehearsal start point outlived its deleted section, so the show would silently start mid-song.
