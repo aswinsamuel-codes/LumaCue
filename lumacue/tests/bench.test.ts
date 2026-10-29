@@ -134,6 +134,17 @@ describe('compileBenchCues', () => {
     expect(r.cues.length).toBeLessThanOrEqual(CUE_BUDGET)
     expect(r.notes.join(' ')).toMatch(/changing every (500|1000) ms/)
   })
+  it('runs a chase per zone on the strip but across the zones on 5 mm LEDs', () => {
+    const p = project([clip({ effect: 'chase', durationMs: 5000 })])
+    expect(compileBenchCues(p, ZONE_IDS, 0, 'strip').cues.map((c) => c.zoneMask)).toEqual([1, 2, 4])
+    const five = compileBenchCues(p, ZONE_IDS, 0, '5mm').cues
+    expect(five.map((c) => c.zoneMask)).toEqual([7])
+    // one LED lit at a time, moving A → B → C
+    const px = new Uint8Array(9)
+    const lit = (t: number) => { renderBench(five, t, '5mm', px); return [0, 1, 2].filter((z) => px[z * 3]) }
+    const lap = five[0].param
+    expect([lit(0), lit(lap / 3 + 1), lit((2 * lap) / 3 + 1)]).toEqual([[0], [1], [2]])
+  })
   it('wipe fills zone by zone over the clip', () => {
     const { cues } = compileBenchCues(project([clip({ effect: 'wipe', durationMs: 3000 })]), ZONE_IDS, 0)
     const px = new Uint8Array(9)

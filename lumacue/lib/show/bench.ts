@@ -60,18 +60,18 @@ const lerp = (a: number, b: number, u: number) => Math.round(a + (b - a) * u)
  * Effects the firmware lacks are rebuilt from the ones it has where that looks
  * close (fade, wipe, rainbow as steps of solid colour), otherwise approximated.
  */
-export function compileBenchCues(project: ShowProject, zoneIds: string[], dancer: number): BenchCompileResult {
+export function compileBenchCues(project: ShowProject, zoneIds: string[], dancer: number, output: BenchOutput = 'strip'): BenchCompileResult {
   // Use the finest colour steps that still fit in flash.
-  let result = compileWithStep(project, zoneIds, dancer, STEPS_MS[0])
+  let result = compileWithStep(project, zoneIds, dancer, STEPS_MS[0], output)
   for (const step of STEPS_MS.slice(1)) {
     if (result.cues.length <= CUE_BUDGET) break
-    result = compileWithStep(project, zoneIds, dancer, step)
+    result = compileWithStep(project, zoneIds, dancer, step, output)
   }
   if (result.cues.length > CUE_BUDGET) result.notes.push(`${result.cues.length} cues may not fit in the Nano's flash (about ${CUE_BUDGET} do). Shorten fades/rainbows or split the show.`)
   return result
 }
 
-function compileWithStep(project: ShowProject, zoneIds: string[], dancer: number, STEP_MS: number): BenchCompileResult {
+function compileWithStep(project: ShowProject, zoneIds: string[], dancer: number, STEP_MS: number, output: BenchOutput): BenchCompileResult {
   const notes = new Set<string>()
   const cues: BenchCue[] = []
 
@@ -128,8 +128,15 @@ function compileWithStep(project: ShowProject, zoneIds: string[], dancer: number
         push(start, end, mask, 'FX_FLASH', rgb, Math.max(60, 1000 / (speedHz(c.speed) * 4)))
         notes.add('Twinkle is played as a fast flash (no random sparkles in bench firmware).')
         break
-      // One cue per zone, so each zone runs its own head like the preview does.
-      case 'chase': idx.forEach((z) => push(start, end, ZONE_BITS[z], 'FX_CHASE', rgb, 2000 / speedHz(c.speed))); break
+      case 'chase':
+        // Strip: one cue per zone, so each zone runs its own head like the preview.
+        // 5 mm: one LED per zone, so the light runs across the zones instead.
+        if (output === 'strip') idx.forEach((z) => push(start, end, ZONE_BITS[z], 'FX_CHASE', rgb, 2000 / speedHz(c.speed)))
+        else {
+          push(start, end, mask, 'FX_CHASE', rgb, 2000 / speedHz(c.speed))
+          notes.add('Chase runs across the 5 mm LEDs (one per zone).')
+        }
+        break
       case 'wipe': {
         // Light the clip's zones one after another, so the costume fills up zone by zone.
         const full = c.durationMs
@@ -298,7 +305,7 @@ export function benchFidelity(
   output: BenchOutput = 'strip',
   zoneLeds = DEFAULT_ZONE_LEDS,
 ): FidelityReport {
-  const { cues } = compileBenchCues(project, zoneIds, dancer)
+  const { cues } = compileBenchCues(project, zoneIds, dancer, output)
   const sizes = benchZoneLeds(zoneLeds)
   const px = new Uint8Array(benchPixelCount(output, zoneLeds) * 3)
   const zones = Math.min(3, Math.max(1, zoneIds.length))
@@ -363,7 +370,7 @@ export interface BenchHardware {
  * changes after a download, the costume needs a re-flash.
  */
 export function benchFingerprint(project: ShowProject, zoneIds: string[], dancer: number, hw?: BenchHardware) {
-  const { cues } = compileBenchCues(project, zoneIds, dancer)
+  const { cues } = compileBenchCues(project, zoneIds, dancer, hw?.output)
   const settings = !hw ? '' : hw.output === '5mm' ? '5mm|' : `strip:${benchZoneLeds(hw.zoneLeds).join(',')}:${Math.round(hw.brightnessPct)}|`
   const text = `${settings}${Math.round(project.lengthMs)}|` + cues.map((c) => `${c.startMs},${c.durationMs},${c.zoneMask},${c.fx},${c.r},${c.g},${c.b},${c.param}`).join(';')
   let h = 0x811c9dc5

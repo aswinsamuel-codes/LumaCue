@@ -4,6 +4,7 @@
  * The cues come from compileBenchCues(), which also drives the bench preview.
  */
 import { compileBenchCues, ZALL } from '@/lib/show/bench'
+import type { BenchOutput } from '@/lib/show/bench'
 import type { ShowProject } from '@/lib/show/model'
 
 /** One line, safe inside a // comment. */
@@ -12,9 +13,9 @@ const oneLine = (text: string) => text.replace(/\s*[\r\n]+\s*/g, ' ')
 const zoneText = (mask: number) =>
   mask === ZALL ? 'ZALL' : ['ZA', 'ZB', 'ZC'].filter((_, i) => mask & (1 << i)).join(' | ')
 
-export function exportArduinoShow(project: ShowProject, zoneIds: string[], dancer: number, opts: { pasteInstructions?: boolean } = {}): string {
-  const { pasteInstructions = true } = opts
-  const { cues, notes } = compileBenchCues(project, zoneIds, dancer)
+export function exportArduinoShow(project: ShowProject, zoneIds: string[], dancer: number, opts: { pasteInstructions?: boolean; output?: BenchOutput } = {}): string {
+  const { pasteInstructions = true, output = 'strip' } = opts
+  const { cues, notes } = compileBenchCues(project, zoneIds, dancer, output)
 
   const lines = cues.map((c) =>
     `  { ${String(c.startMs).padStart(6)}, ${String(c.durationMs).padStart(5)}, ${zoneText(c.zoneMask)}, ${c.fx}, ${c.r}, ${c.g}, ${c.b}, ${c.param} },  // ${c.section ? `section ${oneLine(c.section)}` : `${c.source} ${c.effect}`}`)

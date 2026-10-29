@@ -106,12 +106,12 @@ export default function TimelineView({ active }: { active: boolean }) {
   }
 
   const zoneIds = useMemo(() => zones.map((z) => z.id), [zones])
-  const arduinoCode = arduino ? exportArduinoShow(project, zoneIds, arduino.dancer) : ''
+  const arduinoCode = arduino ? exportArduinoShow(project, zoneIds, arduino.dancer, { output: arduino.output }) : ''
 
   // Preflight for the export dialog: will this dancer's costume look like the preview, and does it fit?
   const preflight = useMemo(() => {
     if (!arduino) return null
-    const { cues, notes } = compileBenchCues(project, zoneIds, arduino.dancer)
+    const { cues, notes } = compileBenchCues(project, zoneIds, arduino.dancer, arduino.output)
     const frame = new Float32Array(layout.total * 3)
     const fidelity = benchFidelity(project, zoneIds, arduino.dancer, (t) => {
       renderDancer(project, layout, arduino.dancer, t, frame)

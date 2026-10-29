@@ -50,7 +50,7 @@ export function buildFirmware(
   const len = (src: string) => replaceOnce(src, SHOW_LENGTH, (_, ws) => `const uint32_t SHOW_LENGTH_MS${ws}= ${lengthMs};`, 'SHOW_LENGTH_MS')
 
   let costume = len(t.costumeIno)
-  const table = exportArduinoShow(project, zoneIds, dancer, { pasteInstructions: false })
+  const table = exportArduinoShow(project, zoneIds, dancer, { pasteInstructions: false, output })
   costume = replaceOnce(costume, SHOW_TABLE, () => table, 'the SHOW[] cue table')
   costume = replaceOnce(costume, OUTPUT_MODE, () => `#define OUTPUT_MODE ${output === 'strip' ? 'MODE_STRIP' : 'MODE_5MM'}`, 'OUTPUT_MODE')
   const [a, b, c] = benchZoneLeds(strip.zoneLeds)

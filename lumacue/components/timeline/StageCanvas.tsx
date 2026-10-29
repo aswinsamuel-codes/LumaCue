@@ -59,7 +59,7 @@ export default function StageCanvas({ project, layout, timeMs, view, focusDancer
   const zoneLeds = useMemo(() => layout.zones.map((z) => z.count), [layout])
   // Compile once per show edit, not per frame.
   const benchCues = useMemo(
-    () => (bench ? Array.from({ length: project.dancers }, (_, d) => compileBenchCues(project, zoneIds, d).cues) : null),
+    () => (bench ? Array.from({ length: project.dancers }, (_, d) => compileBenchCues(project, zoneIds, d, bench).cues) : null),
     [bench, project, zoneIds],
   )
   const benchPx = useMemo(() => new Uint8Array(benchPixelCount(bench ?? 'strip', zoneLeds) * 3), [bench, zoneLeds])
@@ -159,7 +159,7 @@ export default function StageCanvas({ project, layout, timeMs, view, focusDancer
     ctx.fillText(`${layout.total} LEDs/costume · peak draw now ≈ ${Math.round(peak)} mA at ${brightness}% cap`, 10, 16)
     if (bench) {
       ctx.fillStyle = '#fde68a'
-      ctx.fillText(`COSTUME VIEW · what the bench firmware lights (${bench === '5mm' ? '5 mm red/green LEDs, 1 per zone' : `WS2812B, zones ${benchZoneLeds(zoneLeds).join('/')} LEDs`}; zones after the 3rd stay dark)`, 10, 30)
+      ctx.fillText(`COSTUME VIEW · what the bench firmware lights (${bench === '5mm' ? '5 mm red/green LEDs, 1 per zone' : `WS2812B, zones ${benchZoneLeds(zoneLeds).join('/')} LEDs`}; zones after the 3rd stay dark)`, 10, size.h - 8)
     }
   }, [project, layout, timeMs, view, focusDancer, brightness, xray, dark, size, bench, benchCues, benchPx, zoneLeds])
 
