@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import StageCanvas from '@/components/timeline/StageCanvas'
+import BenchTestLog from '@/components/showmode/BenchTestLog'
 import { buildLayout } from '@/lib/show/body'
 import { formatShowTime } from '@/lib/show/model'
 import { useShowPlayback } from '@/lib/show/playback'
@@ -41,6 +42,8 @@ export default function ShowModeView() {
     if (delayedStart.current) clearTimeout(delayedStart.current)
     delayedStart.current = null
   }
+  const [benchLogOpen, setBenchLogOpen] = useState(false)
+
   // Rehearsal: start from a section instead of the top (the base sends S<ms>; costumes join there).
   const [startFrom, setStartFrom] = useState(0)
   const startPoints = useMemo(
@@ -185,7 +188,10 @@ export default function ShowModeView() {
               ms
             </label>
           </div>
-          <div className="mt-2 flex items-center justify-end text-[11px] font-mono">
+          <div className="mt-2 flex items-center justify-between gap-2 text-[11px] font-mono">
+            <button onClick={() => setBenchLogOpen(true)} className="text-white/40 hover:text-white underline-offset-2 hover:underline" title="Record bench test results (T1–T12) and copy them into the README">
+              Bench tests
+            </button>
             <span className={baseDriftMs === null ? 'text-white/25' : Math.abs(baseDriftMs) >= 20 ? 'text-yellow-300' : 'text-green-300/80'} title="How far the base station's clock had drifted from the music at the last sync">
               {baseDriftMs === null
                 ? 'base vs music: –'
@@ -316,6 +322,7 @@ export default function ShowModeView() {
         </div>
 
       </div>
+      {benchLogOpen && <BenchTestLog onClose={() => setBenchLogOpen(false)} />}
     </div>
   )
 }
