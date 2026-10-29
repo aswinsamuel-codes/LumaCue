@@ -61,3 +61,28 @@ describe('costume store with the simulated base station', () => {
     expect(useCostumeStore.getState().baseShowLengthMs).toBeNull()
   })
 })
+
+describe('speaker delay', () => {
+  it('holds music sync back by the delay and clamps the setting', async () => {
+    const s = useCostumeStore.getState()
+    await s.disconnectBase()
+    s.setSpeakerDelay(5000)
+    expect(useCostumeStore.getState().speakerDelayMs).toBe(1000)
+    s.setSpeakerDelay(-3)
+    expect(useCostumeStore.getState().speakerDelayMs).toBe(0)
+    s.setSpeakerDelay(150)
+    await s.connectSimulator()
+    useCostumeStore.setState({ musicSync: true })
+    s.start()
+    useCostumeStore.getState().syncToMusic(100) // audience hasn't heard the start yet: nothing sent
+    await flush()
+    await flush()
+    expect(useCostumeStore.getState().baseDriftMs).toBeNull()
+    useCostumeStore.getState().syncToMusic(10150)
+    await flush()
+    await flush()
+    // the simulated base had been running ~0 ms; told "10000", it reports how far off it was
+    expect(useCostumeStore.getState().baseDriftMs).toBeLessThan(-9000)
+    s.setSpeakerDelay(0)
+  })
+})

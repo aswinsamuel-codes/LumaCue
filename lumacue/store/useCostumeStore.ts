@@ -24,6 +24,12 @@ interface CostumeState {
   musicSync: boolean
   /** Base clock minus music at the last sync, ms (+ = base was ahead). */
   baseDriftMs: number | null
+  /**
+   * How long the venue's speakers lag the laptop (mixer, wireless, Bluetooth), ms.
+   * START and music sync are held back by this much so lights land on what the audience hears.
+   */
+  speakerDelayMs: number
+  setSpeakerDelay: (ms: number) => void
   /** SHOW_LENGTH_MS compiled into the base station (from STATUS), if known. */
   baseShowLengthMs: number | null
   armed: boolean
@@ -56,6 +62,18 @@ function makeId() {
 
 function log(type: LogType, message: string) {
   useDashboardStore.getState().addLog(type, `Costume · ${message}`)
+}
+
+const SPEAKER_DELAY_KEY = 'lumacue.speakerDelayMs'
+export const MAX_SPEAKER_DELAY_MS = 1000
+
+function loadSpeakerDelay() {
+  try {
+    const v = Number(typeof window !== 'undefined' ? window.localStorage.getItem(SPEAKER_DELAY_KEY) : 0)
+    return Number.isFinite(v) ? Math.max(0, Math.min(MAX_SPEAKER_DELAY_MS, v)) : 0
+  } catch {
+    return 0
+  }
 }
 
 const usbBase = new BaseStationSerial()
@@ -116,6 +134,12 @@ export const useCostumeStore = create<CostumeState>((set, get) => ({
   musicSync: true,
   baseDriftMs: null,
   baseShowLengthMs: null,
+  speakerDelayMs: loadSpeakerDelay(),
+  setSpeakerDelay: (ms) => {
+    const v = Math.max(0, Math.min(MAX_SPEAKER_DELAY_MS, Math.round(ms) || 0))
+    set({ speakerDelayMs: v })
+    try { window.localStorage.setItem(SPEAKER_DELAY_KEY, String(v)) } catch { /* storage blocked */ }
+  },
   armed: false,
   running: false,
   beaconsOn: true,
@@ -179,7 +203,10 @@ export const useCostumeStore = create<CostumeState>((set, get) => ({
   syncToMusic: (musicMs) => {
     const { running, baseConnected, musicSync } = get()
     if (!running || !baseConnected || !musicSync) return
-    void sendToBase(`T${Math.max(0, Math.round(musicMs))}`)
+    // The audience hears the music speakerDelayMs late, so the lights run that much behind the laptop.
+    const heard = musicMs - get().speakerDelayMs
+    if (heard < 0) return
+    void sendToBase(`T${Math.round(heard)}`)
   },
 
   watchBaseStation: () => {

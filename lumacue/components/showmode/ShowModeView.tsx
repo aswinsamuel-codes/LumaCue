@@ -18,8 +18,8 @@ import { benchFingerprint } from '@/lib/show/bench'
 export default function ShowModeView() {
   const project = useShowStore((s) => s.project)
   const {
-    zones, brightness, baseConnected, baseKind, armed, running, beaconsOn, musicSync, baseDriftMs, baseShowLengthMs,
-    connectBase, connectSimulator, disconnectBase, arm, start, blackout, toggleBeacons, showEnded, setMusicSync, syncToMusic,
+    zones, brightness, baseConnected, baseKind, armed, running, beaconsOn, musicSync, baseDriftMs, baseShowLengthMs, speakerDelayMs,
+    connectBase, connectSimulator, disconnectBase, arm, start, blackout, toggleBeacons, showEnded, setMusicSync, syncToMusic, setSpeakerDelay,
   } = useCostumeStore()
   const pb = useShowPlayback()
   const layout = useMemo(() => buildLayout(zones), [zones])
@@ -34,16 +34,26 @@ export default function ShowModeView() {
   }, [project, zones, flashed])
   const staleCount = firmware.filter((f) => f.state !== 'ok').length
 
+  // With a speaker delay, the music starts now and the costumes when the audience hears it.
+  const delayedStart = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const cancelDelayedStart = () => {
+    if (delayedStart.current) clearTimeout(delayedStart.current)
+    delayedStart.current = null
+  }
   const handleStart = () => {
-    start()
+    cancelDelayedStart()
     pb.seek(0)
     pb.play()
+    if (speakerDelayMs > 0) delayedStart.current = setTimeout(() => { delayedStart.current = null; start() }, speakerDelayMs)
+    else start()
   }
 
   const handleBlackout = () => {
+    cancelDelayedStart()
     blackout()
     pb.pause()
   }
+  useEffect(() => cancelDelayedStart, [])
 
   // Keep the base station's clock on the music: it runs on its own resonator,
   // which can be off by ~0.1–0.5 % (up to ~1 s over a 3-minute song).
@@ -134,6 +144,19 @@ export default function ShowModeView() {
               <input type="checkbox" checked={musicSync} onChange={(e) => setMusicSync(e.target.checked)} className="accent-purple-500" />
               Music sync
             </label>
+            <label className="flex items-center gap-1 text-white/50" title="How late the venue's speakers play the music (mixer, wireless, Bluetooth). Film a flash cue on a beat in slow motion and raise this until light and sound line up">
+              Speaker delay
+              <input
+                type="number" min={0} max={1000} step={10} value={speakerDelayMs}
+                disabled={running}
+                onChange={(e) => setSpeakerDelay(Number(e.target.value))}
+                className="w-14 bg-black/40 border border-white/10 rounded px-1 py-0.5 text-white text-right disabled:opacity-40"
+                aria-label="Speaker delay in milliseconds"
+              />
+              ms
+            </label>
+          </div>
+          <div className="mt-2 flex items-center justify-end text-[11px] font-mono">
             <span className={baseDriftMs === null ? 'text-white/25' : Math.abs(baseDriftMs) >= 20 ? 'text-yellow-300' : 'text-green-300/80'} title="How far the base station's clock had drifted from the music at the last sync">
               {baseDriftMs === null ? 'base vs music: –' : `base vs music: ${baseDriftMs > 0 ? '+' : ''}${baseDriftMs} ms`}
             </span>
