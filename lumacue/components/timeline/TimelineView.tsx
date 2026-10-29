@@ -10,6 +10,9 @@ import { buildLayout } from '@/lib/show/body'
 import { ALL_DANCERS, formatShowTime, isShowProject } from '@/lib/show/model'
 import { useShowPlayback } from '@/lib/show/playback'
 import { exportArduinoShow } from '@/lib/show/arduino-export'
+import { buildFirmware } from '@/lib/show/firmware-bundle'
+import type { FirmwareTemplates, LedOutput } from '@/lib/show/firmware-bundle'
+import { makeZip } from '@/lib/zip'
 import { useShowStore } from '@/store/useShowStore'
 import { useCostumeStore } from '@/store/useCostumeStore'
 import { useDashboardStore } from '@/store/useDashboardStore'
@@ -29,7 +32,7 @@ export default function TimelineView({ active }: { active: boolean }) {
   const [snap, setSnap] = useState<SnapMode>('grid')
   const [view, setView] = useState<'all' | 'single'>('all')
   const [xray, setXray] = useState(false)
-  const [arduino, setArduino] = useState<{ dancer: number } | null>(null)
+  const [arduino, setArduino] = useState<{ dancer: number; output: LedOutput; error?: string; busy?: boolean } | null>(null)
   const [setupOpen, setSetupOpen] = useState(false)
   const [autoOpen, setAutoOpen] = useState(false)
   const peaks = pb.audio
@@ -88,6 +91,28 @@ export default function TimelineView({ active }: { active: boolean }) {
   }
 
   const arduinoCode = arduino ? exportArduinoShow(project, zones.map((z) => z.id), arduino.dancer) : ''
+
+  // Ready-to-upload sketches: the repo templates with this show, its length and the LED type filled in.
+  const downloadFirmware = async () => {
+    if (!arduino) return
+    setArduino({ ...arduino, busy: true, error: undefined })
+    try {
+      const res = await fetch('/api/firmware')
+      const body = await res.json()
+      if (!res.ok) throw new Error(body.error ?? `HTTP ${res.status}`)
+      const files = buildFirmware(body as FirmwareTemplates, project, zones.map((z) => z.id), arduino.dancer, arduino.output)
+      const folder = `lumacue_${project.name.replace(/[^\w-]+/g, '_') || 'show'}_dancer${arduino.dancer + 1}`
+      const a = document.createElement('a')
+      a.href = URL.createObjectURL(makeZip(files.map((f) => ({ path: `${folder}/${f.path}`, text: f.text }))))
+      a.download = `${folder}.zip`
+      a.click()
+      URL.revokeObjectURL(a.href)
+      addLog('SYNC', `Show · firmware for Dancer ${arduino.dancer + 1} downloaded (${folder}.zip, ${formatShowTime(project.lengthMs)})`)
+      setArduino({ ...arduino, busy: false })
+    } catch (e) {
+      setArduino({ ...arduino, busy: false, error: (e as Error).message })
+    }
+  }
 
   return (
     <div className="flex flex-col gap-3 h-full min-h-0">
@@ -152,7 +177,7 @@ export default function TimelineView({ active }: { active: boolean }) {
           <button className={btnIdle} onClick={() => importInput.current?.click()}>Open</button>
           <input ref={importInput} type="file" accept=".json,application/json" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) void importJson(f); e.target.value = '' }} />
           <button className={btnIdle} onClick={exportJson}>Save file</button>
-          <button className={`${btn} bg-yellow-500/15 border-yellow-500/30 text-yellow-200 hover:bg-yellow-500/25`} onClick={() => setArduino({ dancer: focusDancer })}>→ Costume firmware</button>
+          <button className={`${btn} bg-yellow-500/15 border-yellow-500/30 text-yellow-200 hover:bg-yellow-500/25`} onClick={() => setArduino({ dancer: focusDancer, output: '5mm' })}>→ Costume firmware</button>
         </div>
       </div>
 
@@ -202,14 +227,32 @@ export default function TimelineView({ active }: { active: boolean }) {
           <div className="w-full max-w-3xl rounded-xl border border-white/10 bg-[#0f0f0f] p-5" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-3 gap-3">
               <h4 className="text-white font-semibold">Export to bench costume firmware</h4>
-              <select value={arduino.dancer} onChange={(e) => setArduino({ dancer: Number(e.target.value) })} className="bg-black/40 border border-white/10 rounded-md px-2 py-1 text-white text-xs">
-                {Array.from({ length: project.dancers }, (_, i) => <option key={i} value={i}>Dancer {i + 1}</option>)}
-              </select>
+              <div className="flex gap-2">
+                <select value={arduino.dancer} onChange={(e) => setArduino({ ...arduino, dancer: Number(e.target.value) })} className="bg-black/40 border border-white/10 rounded-md px-2 py-1 text-white text-xs" aria-label="Dancer">
+                  {Array.from({ length: project.dancers }, (_, i) => <option key={i} value={i}>Dancer {i + 1}</option>)}
+                </select>
+                <select value={arduino.output} onChange={(e) => setArduino({ ...arduino, output: e.target.value as LedOutput })} className="bg-black/40 border border-white/10 rounded-md px-2 py-1 text-white text-xs" aria-label="LEDs on the costume">
+                  <option value="5mm">5 mm bi-colour LEDs</option>
+                  <option value="strip">WS2812B strip</option>
+                </select>
+              </div>
             </div>
-            <textarea readOnly value={arduinoCode} className="w-full h-72 bg-black/50 border border-white/10 rounded-md p-3 text-[11px] font-mono text-green-200" />
+
+            <div className="rounded-lg border border-purple-500/30 bg-purple-500/10 p-3 mb-3 flex items-center gap-3">
+              <button className={`${btn} bg-purple-500/30 border-purple-500/60 text-purple-100 hover:bg-purple-500/40 text-xs px-4 py-2`} onClick={() => void downloadFirmware()} disabled={arduino.busy}>
+                {arduino.busy ? 'Preparing…' : '⬇ Download sketches (.zip)'}
+              </button>
+              <p className="text-white/50 text-[11px]">
+                Both sketches, ready to upload: show, length ({formatShowTime(project.lengthMs)}) and LED type already set. Unzip, open each <code>.ino</code> in the Arduino IDE, upload.
+              </p>
+            </div>
+            {arduino.error && <p className="text-red-400 text-[11px] font-mono mb-3">Couldn&apos;t build the sketches: {arduino.error}</p>}
+
+            <p className="text-white/30 text-[10px] font-mono tracking-widest mb-1">OR COPY THE CUE TABLE ONLY</p>
+            <textarea readOnly value={arduinoCode} className="w-full h-56 bg-black/50 border border-white/10 rounded-md p-3 text-[11px] font-mono text-green-200" />
             <div className="flex gap-2 mt-3">
               <button className={btnIdle} onClick={() => void navigator.clipboard.writeText(arduinoCode).then(() => addLog('INFO', 'Show · firmware cue table copied'))}>Copy</button>
-              <p className="text-white/30 text-[11px] self-center">Paste over <code>SHOW[]</code> in <code>firmware/bench_sync_test/test_costume/test_costume.ino</code>, then upload.</p>
+              <p className="text-white/30 text-[11px] self-center">Paste over <code>SHOW[]</code> in <code>test_costume.ino</code> and set <code>SHOW_LENGTH_MS</code> in both sketches.</p>
               <button className={`${btnIdle} ml-auto`} onClick={() => setArduino(null)}>Close</button>
             </div>
           </div>

@@ -36,6 +36,19 @@ Template for each suggestion supplied by the owner:
 | Trade-offs / concerns | |
 | Status | Proposed / Approved / Deferred |
 
+### O-01 — Costume made of separate garments (2026-10-29)
+
+| Field | Value |
+|---|---|
+| Suggestion (owner's words, paraphrased) | Future costumes will be built from separate pieces: pants, shirt, hat, shoes, even specs (glasses), so the lighting in the digital twin will differ per piece |
+| Intended user benefit | Program and preview each garment separately (e.g. only shoes on a footwork beat, only specs in a dark section) |
+| Priority | Should (after the December show) |
+| Implementation implications | Digital twin needs garment-based placements and silhouettes (`lumacue/lib/show/body.ts`); zones grouped by garment; clips target garments as well as zones; each garment may need its own small controller/battery or a connector to a shared one; firmware export per garment/controller |
+| Dependencies | Final costume hardware design (one controller per dancer vs per garment) |
+| Acceptance criteria | Owner can define a dancer's garments, see each one lit separately in the twin, and target cues at a garment |
+| Trade-offs / concerns | More controllers per dancer raises cost, weight and sync points; wired garments need detachable connectors |
+| Status | Noted for future — design to stay compatible |
+
 ## 3. Questions to the owner
 
 1. Please list your suggestions and refinements — anything you'd change in the current dashboard or want in the new app.
