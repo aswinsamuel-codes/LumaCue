@@ -9,7 +9,7 @@
  */
 import { ALL_DANCERS } from '@/lib/show/model'
 import type { Clip, EffectId, ShowProject } from '@/lib/show/model'
-import { hexToRgb, speedHz } from '@/lib/show/render'
+import { activeClips, hexToRgb, speedHz } from '@/lib/show/render'
 
 export type BenchFx = 'FX_OFF' | 'FX_SOLID' | 'FX_FLASH' | 'FX_CHASE'
 export type BenchOutput = '5mm' | 'strip'
@@ -33,8 +33,12 @@ export interface BenchCompileResult {
 }
 
 export const MAX_DURATION = 65535
-/** The Nano has ~30 KB of flash; the radio code and FastLED take roughly half. 14 bytes per cue. */
-export const CUE_BUDGET = 800
+/**
+ * Cues that fit in the Nano's 30 KB of flash. Measured 30 Oct 2026 with
+ * arduino-cli (AVR core 1.8.7): each cue costs ~13 bytes; the WS2812B build
+ * without cues is ~12.7 KB, so ~1,250 cues fill 95 %. Kept below that.
+ */
+export const CUE_BUDGET = 1100
 /** Time steps tried for effects built from a series of solid colours, finest first. */
 const STEPS_MS = [250, 500, 1000]
 
@@ -203,4 +207,83 @@ export function benchVisibleColor(r: number, g: number, b: number, output: Bench
   if (output === 'strip') return [r, g, b]
   const red = r >= 128, green = g >= 128
   return red && green ? [255, 190, 0] : red ? [255, 0, 0] : green ? [0, 255, 0] : [0, 0, 0]
+}
+
+/** Parses a SHOW[] cue table (as exported, or as written in the sketch) back into cues. */
+export function parseCueTable(text: string): Omit<BenchCue, 'source' | 'effect'>[] {
+  const body = /const Cue SHOW\[\] PROGMEM = \{([\s\S]*?)\n\};/.exec(text)?.[1] ?? ''
+  const masks: Record<string, number> = { ZA: 1, ZB: 2, ZC: 4, ZALL: 7 }
+  const out: Omit<BenchCue, 'source' | 'effect'>[] = []
+  const row = /\{\s*(\d+),\s*(\d+),\s*([A-Z| ]+),\s*(FX_\w+),\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+)\s*\}/g
+  for (const line of body.split('\n')) {
+    const code = line.replace(/\/\/.*$/, '')
+    for (const m of code.matchAll(row)) {
+      out.push({
+        startMs: +m[1], durationMs: +m[2],
+        zoneMask: m[3].split('|').reduce((a, z) => a | (masks[z.trim()] ?? 0), 0),
+        fx: m[4] as BenchFx, r: +m[5], g: +m[6], b: +m[7], param: +m[8],
+      })
+    }
+  }
+  return out
+}
+
+export interface FidelityIssue {
+  clipStartMs: number
+  effect: EffectId
+  track: number
+  mismatchPct: number
+}
+
+export interface FidelityReport {
+  matchPct: number          // share of (time × zone) samples where costume and preview agree
+  issues: FidelityIssue[]   // clips where they disagree most, worst first
+}
+
+/**
+ * Compares the editor's preview with what the bench costume will show, zone by
+ * zone every `stepMs`. A zone "agrees" when its average colour is within a
+ * visible distance of the costume's. Uses the strip build (20 LEDs per zone).
+ */
+export function benchFidelity(
+  project: ShowProject,
+  zoneIds: string[],
+  dancer: number,
+  renderZones: (t: number) => [number, number, number][],
+  stepMs = 50,
+): FidelityReport {
+  const { cues } = compileBenchCues(project, zoneIds, dancer)
+  const px = new Uint8Array(benchPixelCount('strip') * 3)
+  const zones = Math.min(3, Math.max(1, zoneIds.length))
+  let good = 0, total = 0
+  const perClip = new Map<Clip, { bad: number; n: number }>()
+
+  for (let t = stepMs / 2; t < project.lengthMs; t += stepMs) {
+    renderBench(cues, t, 'strip', px)
+    const editor = renderZones(t)
+    let badHere = 0
+    for (let z = 0; z < zones; z++) {
+      let r = 0, g = 0, b = 0
+      for (let i = z * LEDS_PER_ZONE; i < (z + 1) * LEDS_PER_ZONE; i++) { r += px[i * 3]; g += px[i * 3 + 1]; b += px[i * 3 + 2] }
+      const [er, eg, eb] = editor[z] ?? [0, 0, 0]
+      const d = Math.hypot(r / LEDS_PER_ZONE - er, g / LEDS_PER_ZONE - eg, b / LEDS_PER_ZONE - eb)
+      total++
+      if (d < 60) good++
+      else badHere++
+    }
+    // Blame the topmost clip playing now (the one the operator would look at).
+    const top = activeClips(project, dancer, t).at(-1)
+    if (top) {
+      const s = perClip.get(top) ?? { bad: 0, n: 0 }
+      s.n += zones
+      s.bad += badHere
+      perClip.set(top, s)
+    }
+  }
+
+  const issues = [...perClip.entries()]
+    .map(([c, s]) => ({ clipStartMs: c.startMs, effect: c.effect, track: c.track, mismatchPct: (100 * s.bad) / Math.max(1, s.n) }))
+    .filter((i) => i.mismatchPct >= 25)
+    .sort((a, b) => b.mismatchPct - a.mismatchPct)
+  return { matchPct: total ? (100 * good) / total : 100, issues }
 }
