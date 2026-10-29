@@ -6,6 +6,8 @@ import { useShowStore } from '@/store/useShowStore'
 import { useDashboardStore } from '@/store/useDashboardStore'
 import type { LogType } from '@/store/useDashboardStore'
 import { PLACEMENTS } from '@/lib/show/body'
+import { parseCostume } from '@/lib/show/model'
+import { COSTUME_TEMPLATES } from '@/lib/show/templates'
 import type { Placement } from '@/lib/show/body'
 
 export interface CostumeZone {
@@ -94,6 +96,12 @@ function onBaseLine(line: string) {
     if (Math.abs(err) >= 20) log('WARN', `Base clock was ${err > 0 ? '+' : ''}${err} ms off the music; corrected`)
     return
   }
+  if (line === 'start point is past the end of the show') {
+    // The base's firmware is for a shorter show: nothing started.
+    useCostumeStore.setState({ running: false, armed: false })
+    log('ERROR', 'Base station refused the start point (past the end of the show its firmware has), so the costumes did NOT start. Upload base_station.ino for this show')
+    return
+  }
   if (/^unknown command: S\d+/.test(line)) {
     // Older base firmware: the costumes did not start.
     useCostumeStore.setState({ running: false, armed: false })
@@ -130,27 +138,16 @@ async function sendToBase(command: BaseCommand) {
   }
 }
 
-// Matches the bench firmware: 3 zones × 20 LEDs (1 m of 60 LED/m)
-const DEFAULT_ZONES: CostumeZone[] = [
-  { id: 'a', name: 'Zone A — arms', leds: 20, placement: 'arms' },
-  { id: 'b', name: 'Zone B — chest', leds: 20, placement: 'chest' },
-  { id: 'c', name: 'Zone C — legs', leds: 20, placement: 'legs' },
-]
+// The "Bench test" template: matches the bench firmware, 3 zones × 20 LEDs (1 m of 60 LED/m)
+const DEFAULT_ZONES: CostumeZone[] = COSTUME_TEMPLATES.find((t) => t.id === 'bench')!.zones.map((z) => ({ ...z }))
 const COSTUME_KEY = 'lumacue.costume.v1'
-const PLACEMENT_IDS = new Set<string>(PLACEMENTS.map((pl) => pl.id))
 
-/** Costume setup saved in this browser; falls back to the defaults if missing or damaged. */
+/** Costume setup saved in this browser (same checks as a show file's); defaults if missing or damaged. */
 function loadCostume(): { zones: CostumeZone[]; brightness: number } {
   try {
     const raw = typeof window !== 'undefined' ? window.localStorage.getItem(COSTUME_KEY) : null
-    const saved = raw ? JSON.parse(raw) : null
-    const zones = Array.isArray(saved?.zones)
-      ? (saved.zones as Partial<CostumeZone>[]).filter(
-          (z): z is CostumeZone => typeof z?.id === 'string' && typeof z.name === 'string' && typeof z.leds === 'number' && z.leds >= 1 && PLACEMENT_IDS.has(z.placement as string),
-        )
-      : []
-    const brightness = typeof saved?.brightness === 'number' ? Math.max(5, Math.min(100, saved.brightness)) : 25
-    return { zones: zones.length ? zones : DEFAULT_ZONES, brightness }
+    const saved = raw ? parseCostume(JSON.parse(raw)) : null
+    return saved ?? { zones: DEFAULT_ZONES, brightness: 25 }
   } catch {
     return { zones: DEFAULT_ZONES, brightness: 25 }
   }

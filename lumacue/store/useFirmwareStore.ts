@@ -14,10 +14,19 @@ export interface FirmwareRecord {
 
 const STORAGE_KEY = 'lumacue.firmware.v1'
 
+/** Records saved in this browser; anything damaged is ignored rather than crashing the page. */
 function load(): Record<number, FirmwareRecord> {
   try {
     const raw = typeof window !== 'undefined' ? window.localStorage.getItem(STORAGE_KEY) : null
-    return raw ? JSON.parse(raw) : {}
+    const parsed: unknown = raw ? JSON.parse(raw) : null
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {}
+    const out: Record<number, FirmwareRecord> = {}
+    for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
+      const r = v as Partial<FirmwareRecord> | null
+      if (!/^\d+$/.test(k) || !r || typeof r.fingerprint !== 'string' || (r.output !== '5mm' && r.output !== 'strip')) continue
+      out[Number(k)] = { fingerprint: r.fingerprint, output: r.output, downloadedAt: Number(r.downloadedAt) || 0, ...(r.board === 'esp32' || r.board === 'nano' ? { board: r.board } : {}) }
+    }
+    return out
   } catch {
     return {}
   }

@@ -76,9 +76,11 @@ export function showChecklist(i: ChecklistInput): CheckItem[] {
   return items
 }
 
-// Planning figures (same as Costume setup): WS2812B up to ~60 mA per LED at full white.
-const MA_FULL_WHITE = 60
-export const CURRENT_LIMIT_MA = 1000
+// Planning figures, not measurements: a WS2812B draws up to ~60 mA at full
+// white and roughly a third of that showing one colour. Used by Costume setup too.
+export const MA_FULL_WHITE = 60
+export const MA_ONE_COLOUR = 20
+export const CURRENT_LIMIT_MA = 1000 // firmware cap proposed in the hardware review
 
 export function worstCaseMilliamps(totalLeds: number, brightnessPct: number) {
   return totalLeds * MA_FULL_WHITE * (brightnessPct / 100)

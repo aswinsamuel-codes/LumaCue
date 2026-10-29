@@ -56,7 +56,8 @@ export default function ShowModeView() {
     },
     [project.sections],
   )
-  const from = startFrom < project.lengthMs ? startFrom : 0
+  // Only a start point that is still offered counts (its section may have been deleted since).
+  const from = startPoints.some((p) => p.ms === startFrom) && startFrom < project.lengthMs ? startFrom : 0
   const handleStart = () => {
     cancelDelayedStart()
     pb.seek(from)
@@ -85,16 +86,19 @@ export default function ShowModeView() {
   // RESTART during a show needs a 1 s hold, so a stray click can't restart every costume.
   const [holding, setHolding] = useState(false)
   const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const pressStart = () => {
+  const pressStart = (e: React.PointerEvent) => {
+    if (e.button !== 0) return // primary button / touch / pen only: a right-click must not start the show
     if (!running) return handleStart()
     setHolding(true)
-    holdTimer.current = setTimeout(() => { setHolding(false); handleStart() }, 1000)
+    holdTimer.current = setTimeout(() => { holdTimer.current = null; setHolding(false); handleStart() }, 1000)
   }
   const releaseStart = () => {
     if (holdTimer.current) clearTimeout(holdTimer.current)
     holdTimer.current = null
     setHolding(false)
   }
+  // Leaving Show Mode mid-hold must not restart the show behind the operator's back.
+  useEffect(() => () => { if (holdTimer.current) clearTimeout(holdTimer.current) }, [])
 
   // The show clock ran to the end: the costumes have finished too.
   const wasPlaying = useRef(false)

@@ -1,5 +1,5 @@
 'use client'
-import { useMemo } from 'react'
+import { useDeferredValue, useMemo } from 'react'
 import { benchFingerprint } from '@/lib/show/bench'
 import { useShowStore } from '@/store/useShowStore'
 import { useCostumeStore } from '@/store/useCostumeStore'
@@ -12,7 +12,8 @@ export type FirmwareState = 'ok' | 'stale' | 'never'
  * they are now? Based on downloads from this browser, not on the boards.
  */
 export function useFirmwareStatus() {
-  const project = useShowStore((s) => s.project)
+  // Deferred: a clip drag re-renders at full speed; the badge catches up when idle.
+  const project = useDeferredValue(useShowStore((s) => s.project))
   const zones = useCostumeStore((s) => s.zones)
   const brightness = useCostumeStore((s) => s.brightness)
   const flashed = useFirmwareStore((s) => s.byDancer)

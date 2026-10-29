@@ -4,14 +4,10 @@ import { useCostumeStore } from '@/store/useCostumeStore'
 import { PLACEMENTS } from '@/lib/show/body'
 import type { Placement } from '@/lib/show/body'
 import { COSTUME_TEMPLATES } from '@/lib/show/templates'
+import { CURRENT_LIMIT_MA, MA_FULL_WHITE, MA_ONE_COLOUR } from '@/lib/show/checklist'
 
-// Planning figures, not measurements: a WS2812B draws up to ~60 mA at full
-// white and roughly a third of that showing one colour.
-const MA_FULL_WHITE = 60
-const MA_ONE_COLOUR = 20
 const POWER_BANK_MAH = 5000
 const USABLE_FRACTION = 0.8   // conversion losses and cut-off, assumed
-const CURRENT_LIMIT_MA = 1000 // firmware cap proposed in the hardware review
 
 export default function CostumeSetup() {
   const { zones, brightness, addZone, updateZone, deleteZone, setBrightness, setZones } = useCostumeStore()

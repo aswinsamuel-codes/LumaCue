@@ -140,7 +140,8 @@ export function showFileJson(project: ShowProject, costume: SavedCostume) {
 
 const PLACEMENT_IDS = new Set<string>(PLACEMENTS.map((p) => p.id))
 
-function parseCostume(x: unknown): SavedCostume | null {
+/** Checks a saved costume setup (show file or browser storage); null if it can't be used. */
+export function parseCostume(x: unknown): SavedCostume | null {
   if (!x || typeof x !== 'object') return null
   const r = x as Record<string, unknown>
   if (!Array.isArray(r.zones)) return null
@@ -214,13 +215,14 @@ export function parseShowProject(x: unknown): ParseResult {
     let badSections = 0
     for (const s of Array.isArray(raw.sections) ? raw.sections : []) {
       const r = (s && typeof s === 'object' ? s : {}) as Record<string, unknown>
-      const startMs = num(r.startMs), endMs = num(r.endMs)
+      const startMs = num(r.startMs), endMs = Math.min(num(r.endMs), lengthMs)
+      // Checked after clamping to the show, so a section past the end doesn't come back inverted.
       if (!(startMs >= 0) || !(endMs > startMs)) { badSections++; continue }
       sections.push({
         id: typeof r.id === 'string' && r.id ? r.id : makeId(),
         name: typeof r.name === 'string' && r.name.trim() ? r.name : 'Section',
         startMs,
-        endMs: Math.min(endMs, lengthMs),
+        endMs,
         darkZones: Array.isArray(r.darkZones) ? r.darkZones.filter((z): z is string => typeof z === 'string') : [],
       })
     }

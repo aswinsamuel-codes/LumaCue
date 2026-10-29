@@ -48,6 +48,12 @@ describe('sections', () => {
     expect(r.warnings.join(' ')).toMatch(/2 sections couldn't be read/)
   })
 
+  it('a section after the end of the show is dropped, not turned inside out', () => {
+    const r = parseShowProject({ ...show, lengthMs: 10000, sections: [{ id: 'late', name: 'Encore', startMs: 12000, endMs: 15000, darkZones: [] }] })
+    expect(r.ok && r.project.sections).toBeUndefined()
+    expect(r.ok && r.warnings.join(' ')).toMatch(/1 section couldn't be read/)
+  })
+
   it('older show files without sections still open unchanged', () => {
     const { sections: _omit, ...old } = show
     void _omit

@@ -86,3 +86,18 @@ describe('speaker delay', () => {
     s.setSpeakerDelay(0)
   })
 })
+
+describe('base refuses the start point', () => {
+  it('marks the show as not running and says why', async () => {
+    const { useShowStore } = await import('@/store/useShowStore')
+    useShowStore.getState().setProject({ lengthMs: 30000 })
+    const s = useCostumeStore.getState()
+    await s.disconnectBase()
+    await s.connectSimulator()
+    s.start(45000) // past the end of the simulated base's show
+    await flush()
+    await flush()
+    expect(useCostumeStore.getState().running).toBe(false)
+    expect(logs().some((m) => m.includes('did NOT start'))).toBe(true)
+  })
+})
