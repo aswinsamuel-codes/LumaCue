@@ -12,6 +12,7 @@ import type { ShowTab } from '@/components/TabBar'
 import TimelineView from '@/components/timeline/TimelineView'
 import ShowModeView from '@/components/showmode/ShowModeView'
 import { ShowPlaybackProvider } from '@/lib/show/playback'
+import YouTubeDock from '@/components/YouTubeDock'
 import { useShowStore } from '@/store/useShowStore'
 import { useDashboardStore } from '@/store/useDashboardStore'
 import { useCostumeStore } from '@/store/useCostumeStore'
@@ -102,6 +103,7 @@ export default function Home() {
             <div role="tabpanel" className={tab === 'live' ? 'flex flex-col flex-1 min-h-0' : 'hidden'}>
               <ShowModeView active={tab === 'live'} />
             </div>
+            <YouTubeDock />
           </ShowPlaybackProvider>
         </div>
 

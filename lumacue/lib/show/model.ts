@@ -42,6 +42,7 @@ export interface ShowProject {
   dancers: number
   lengthMs: number
   audioName: string | null
+  audioUrl?: string          // YouTube link when the music comes from YouTube
   clips: Clip[]
   sections?: ShowSection[]   // optional, so older show files still open
 }
@@ -249,6 +250,7 @@ export function parseShowProject(x: unknown): ParseResult {
       dancers,
       lengthMs,
       audioName: typeof raw.audioName === 'string' ? raw.audioName : null,
+      ...(typeof raw.audioUrl === 'string' && /^https:\/\//.test(raw.audioUrl) ? { audioUrl: raw.audioUrl } : {}),
       clips,
       ...(sections.length ? { sections: sections.sort((a, b) => a.startMs - b.startMs) } : {}),
     },

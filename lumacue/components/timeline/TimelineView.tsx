@@ -52,6 +52,8 @@ export default function TimelineView({ active }: { active: boolean }) {
   const [autoOpen, setAutoOpen] = useState(false)
   const [sectionsOpen, setSectionsOpen] = useState(false)
   const [videoOpen, setVideoOpen] = useState(false)
+  const [ytUrl, setYtUrl] = useState('')
+  const [ytError, setYtError] = useState<string | null>(null)
   const peaks = pb.audio
   const audioInput = useRef<HTMLInputElement>(null)
   const importInput = useRef<HTMLInputElement>(null)
@@ -78,11 +80,26 @@ export default function TimelineView({ active }: { active: boolean }) {
   const loadAudio = async (file: File) => {
     try {
       const durationMs = await pb.loadAudio(file)
-      setProject({ audioName: file.name, lengthMs: Math.ceil(durationMs) })
+      setProject({ audioName: file.name, audioUrl: undefined, lengthMs: Math.ceil(durationMs) })
       pb.seek(0)
       addLog('INFO', `Show · music loaded: ${file.name} (${formatShowTime(durationMs)})`)
     } catch {
       addLog('ERROR', `Show · could not read ${file.name} as audio`)
+    }
+  }
+
+  // Music from a YouTube link, played in YouTube's own player (see YouTubeDock).
+  const loadYouTubeLink = async (url: string) => {
+    setYtError(null)
+    try {
+      const { title, durationMs } = await pb.loadYouTube(url)
+      setProject({ audioName: `YouTube: ${title}`, audioUrl: url.trim(), ...(durationMs > 0 ? { lengthMs: Math.ceil(durationMs) } : {}) })
+      pb.seek(0)
+      setYtUrl('')
+      addLog('INFO', `Show · YouTube music: ${title}${durationMs > 0 ? ` (${formatShowTime(durationMs)})` : ''}`)
+    } catch (e) {
+      setYtError((e as Error).message)
+      addLog('ERROR', `Show · YouTube link not loaded: ${(e as Error).message}`)
     }
   }
 
@@ -220,12 +237,24 @@ export default function TimelineView({ active }: { active: boolean }) {
         <button className={btnIdle} onClick={redo} disabled={!future.length} title="Redo (Ctrl+Shift+Z)">↷</button>
 
         <div className="h-5 w-px bg-white/10 mx-1" />
-        <button className={`${btn} bg-cyan-500/15 border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/25`} onClick={() => audioInput.current?.click()}>♪ {peaks ? 'Change music' : 'Load music'}</button>
+        <button className={`${btn} bg-cyan-500/15 border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/25`} onClick={() => audioInput.current?.click()} title="Load a music file (MP3, WAV…) from this computer">♪ {peaks ? 'Change music' : 'Load music'}</button>
+        <form className="flex items-center gap-1" onSubmit={(e) => { e.preventDefault(); if (ytUrl.trim()) void loadYouTubeLink(ytUrl) }}>
+          <input
+            value={ytUrl}
+            onChange={(e) => { setYtUrl(e.target.value); setYtError(null) }}
+            placeholder="or paste a YouTube link…"
+            aria-label="YouTube link for the music"
+            className="w-48 bg-black/40 border border-white/10 rounded-md px-2 py-1.5 text-white text-[11px] font-mono focus:outline-none focus:border-red-500/50"
+          />
+          <button type="submit" disabled={!ytUrl.trim() || pb.youtubeLoading} className={`${btn} bg-red-500/15 border-red-500/30 text-red-300 hover:bg-red-500/25`} title="Play this YouTube video’s sound as the show’s music">
+            {pb.youtubeLoading ? 'Loading…' : '▶ Use'}
+          </button>
+        </form>
         <button
           className={`${btn} bg-purple-500/20 border-purple-500/40 text-purple-200 hover:bg-purple-500/30`}
           onClick={() => setAutoOpen(true)}
           disabled={!peaks}
-          title={peaks ? 'Create cues automatically from the song’s beat and energy' : 'Load music first'}
+          title={peaks ? 'Create cues automatically from the song’s beat and energy' : pb.youtube ? 'Auto cues need a music file: YouTube doesn’t let apps read the sound. Load the same song as a file to use them.' : 'Load music first'}
         >
           ✨ Auto cues
         </button>
@@ -249,8 +278,21 @@ export default function TimelineView({ active }: { active: boolean }) {
         </div>
       </div>
 
-      {project.audioName && !peaks && (
-        <p className="text-yellow-300/70 text-[11px] font-mono px-1 -mt-1">Music &quot;{project.audioName}&quot; isn&apos;t loaded in this session. Load it again to hear it and see the waveform.</p>
+      {ytError && <p className="text-red-400 text-[11px] font-mono px-1 -mt-1">YouTube: {ytError}</p>}
+      {project.audioName && !peaks && !pb.youtube && (
+        <p className="text-yellow-300/70 text-[11px] font-mono px-1 -mt-1">
+          Music &quot;{project.audioName}&quot; isn&apos;t loaded in this session.{' '}
+          {project.audioUrl ? (
+            <button className="underline hover:text-yellow-200 disabled:opacity-50" disabled={pb.youtubeLoading} onClick={() => void loadYouTubeLink(project.audioUrl!)}>
+              {pb.youtubeLoading ? 'Loading from YouTube…' : 'Load it from YouTube again'}
+            </button>
+          ) : 'Load it again to hear it and see the waveform.'}
+        </p>
+      )}
+      {pb.youtube && (
+        <p className="text-white/35 text-[11px] font-mono px-1 -mt-1">
+          ▶ Music from YouTube (player in the corner). No waveform or Auto cues for YouTube; ads or buffering pause the show until the music plays. For the show itself, a music file is more reliable.
+        </p>
       )}
 
       <Timeline

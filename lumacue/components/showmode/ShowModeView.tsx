@@ -53,7 +53,7 @@ export default function ShowModeView({ active = true }: { active?: boolean }) {
   const checklist = showChecklist({
     baseKind, baseShowLengthMs, showLengthMs: project.lengthMs,
     firmware: firmware.map((f) => f.state),
-    showAudioName: project.audioName, loadedAudioName: pb.audio?.name ?? null,
+    showAudioName: project.audioName, loadedAudioName: pb.audio?.name ?? (pb.youtube ? `YouTube: ${pb.youtube.name}` : null),
     musicSync, speakerDelayMs,
     worstCaseMa: worstCaseMilliamps(layout.total, brightness), showPower, currentLimitMa: CURRENT_LIMIT_MA, fiveMmCount: fiveMm.size, dancers: project.dancers,
   })
@@ -156,7 +156,7 @@ export default function ShowModeView({ active = true }: { active?: boolean }) {
   const state = running ? 'RUNNING' : armed ? 'ARMED' : 'IDLE'
   const stateColor = running ? 'text-green-400' : armed ? 'text-yellow-300' : 'text-white/40'
   const progress = Math.min(100, (pb.timeMs / project.lengthMs) * 100)
-  const musicMissing = !!project.audioName && !pb.audio
+  const musicMissing = !!project.audioName && !pb.audio && !pb.youtube
 
   return (
     <div className="flex gap-3 h-full min-h-0">
@@ -248,7 +248,7 @@ export default function ShowModeView({ active = true }: { active?: boolean }) {
             <div className="h-full bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500" style={{ width: `${progress}%` }} />
           </div>
           <p className={`mt-2 text-[11px] font-mono truncate ${musicMissing ? 'text-yellow-300/80' : 'text-cyan-300/60'}`}>
-            ♪ {pb.audio ? pb.audio.name : musicMissing ? `${project.audioName}: load it in Show Studio` : 'No music'}
+            ♪ {pb.audio ? pb.audio.name : pb.youtube ? `YouTube: ${pb.youtube.name} (ads or buffering pause the show)` : musicMissing ? `${project.audioName}: load it in Show Studio` : 'No music'}
           </p>
         </div>
 
