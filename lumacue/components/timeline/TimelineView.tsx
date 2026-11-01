@@ -1,6 +1,11 @@
 'use client'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import StageCanvas from '@/components/timeline/StageCanvas'
+import dynamic from 'next/dynamic'
+import { useViewStore } from '@/store/useViewStore'
+
+// three.js loads only when the 3D view is first shown.
+const Stage3D = dynamic(() => import('@/components/timeline/Stage3D'), { ssr: false })
 import Timeline from '@/components/timeline/Timeline'
 import type { SnapMode } from '@/components/timeline/Timeline'
 import Inspector from '@/components/timeline/Inspector'
@@ -16,7 +21,7 @@ import { exportArduinoShow } from '@/lib/show/arduino-export'
 import { buildFirmware, buildFirmwareForAll } from '@/lib/show/firmware-bundle'
 import type { Board, FirmwareTemplates, LedOutput } from '@/lib/show/firmware-bundle'
 import { makeZip } from '@/lib/zip'
-import { benchFidelity, benchFingerprint, compileBenchCues, CUE_BUDGET } from '@/lib/show/bench'
+import { benchFidelity, benchFingerprint, benchPositions, compileBenchCues, CUE_BUDGET } from '@/lib/show/bench'
 import type { BenchOutput } from '@/lib/show/bench'
 import { renderDancer } from '@/lib/show/render'
 import { FIVE_MM_MAX_MA, runtimeHours, scalePower, showPower } from '@/lib/show/power'
@@ -43,6 +48,7 @@ export default function TimelineView({ active }: { active: boolean }) {
   const [snap, setSnap] = useState<SnapMode>('grid')
   const [view, setView] = useState<'all' | 'single'>('all')
   const [xray, setXray] = useState(false)
+  const { view3d, setView3d } = useViewStore()
   const [costumeView, setCostumeView] = useState<BenchOutput | null>(null)
   const recordDownload = useFirmwareStore((s) => s.recordDownload)
   const firmwareToUpdate = useFirmwareStatus().toUpdate
@@ -146,7 +152,7 @@ export default function TimelineView({ active }: { active: boolean }) {
         for (let i = z.start; i < z.start + z.count; i++) { r += frame[i * 3]; g += frame[i * 3 + 1]; b += frame[i * 3 + 2] }
         return [r / z.count, g / z.count, b / z.count] as [number, number, number]
       })
-    }, 100, arduino.output, zones.map((z) => z.leds))
+    }, 100, arduino.output, zones.map((z) => z.leds), benchPositions(arduino.output, zones))
     return { cues: cues.length, notes, fidelity }
   }, [arduino, project, zoneIds, layout, zones])
 
@@ -163,7 +169,7 @@ export default function TimelineView({ active }: { active: boolean }) {
       const res = await fetch(`/api/firmware?board=${arduino.board}`)
       const body = await res.json()
       if (!res.ok) throw new Error(body.error ?? `HTTP ${res.status}`)
-      const strip = { zoneLeds: zones.map((z) => z.leds), brightnessPct: brightness }
+      const strip = { zoneLeds: zones.map((z) => z.leds), brightnessPct: brightness, shapes: zones }
       const files = all
         ? buildFirmwareForAll(body as FirmwareTemplates, project, zoneIds, arduino.output, new Date(), strip, arduino.board)
         : buildFirmware(body as FirmwareTemplates, project, zoneIds, arduino.dancer, arduino.output, new Date(), strip, arduino.board)
@@ -184,22 +190,33 @@ export default function TimelineView({ active }: { active: boolean }) {
       {/* Digital twin + inspector */}
       <div className="flex gap-3 h-[46%] min-h-[240px] shrink-0">
         <div className="relative flex-1 min-w-0 rounded-xl border border-white/10 overflow-hidden">
-          <StageCanvas
-            project={project}
-            layout={layout}
-            timeMs={pb.timeMs}
-            view={view}
-            focusDancer={focusDancer}
-            brightness={brightness}
-            xray={xray}
-            bench={costumeView}
-            onPickDancer={(d) => selectTrack(d)}
-          />
+          {view3d && costumeView === null ? (
+            <Stage3D project={project} layout={layout} timeMs={pb.timeMs} view={view} focusDancer={focusDancer} />
+          ) : (
+            <StageCanvas
+              project={project}
+              layout={layout}
+              timeMs={pb.timeMs}
+              view={view}
+              focusDancer={focusDancer}
+              brightness={brightness}
+              xray={xray}
+              bench={costumeView}
+              onPickDancer={(d) => selectTrack(d)}
+            />
+          )}
           {videoOpen && <RehearsalVideo timeMs={pb.timeMs} playing={pb.playing} onClose={() => setVideoOpen(false)} />}
           <div className="absolute top-2 right-2 flex gap-1">
             <button className={view === 'all' ? btnOn : btnIdle} onClick={() => setView('all')}>All dancers</button>
             <button className={view === 'single' ? btnOn : btnIdle} onClick={() => setView('single')}>Dancer {focusDancer + 1}</button>
-            <button className={xray ? btnOn : btnIdle} onClick={() => setXray(!xray)} title="Hide the body and show only the LED layout">X-ray</button>
+            <button
+              className={view3d ? btnOn : btnIdle}
+              onClick={() => setView3d(!view3d)}
+              title={costumeView ? '3D shows the preview; switch Costume view back to Preview to see it' : 'Turn the twin into a 3D stage you can rotate'}
+            >
+              {view3d ? '3D' : '2D'}
+            </button>
+            {!view3d && <button className={xray ? btnOn : btnIdle} onClick={() => setXray(!xray)} title="Hide the body and show only the LED layout (and the back of the costume)">X-ray</button>}
             <button
               className={costumeView ? `${btn} bg-yellow-500/20 border-yellow-500/40 text-yellow-200` : btnIdle}
               onClick={() => setCostumeView(costumeView === null ? '5mm' : costumeView === '5mm' ? 'strip' : null)}

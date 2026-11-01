@@ -25,7 +25,7 @@
 const uint8_t  SHOW_ID           = 1;
 const uint32_t SHOW_LENGTH_MS    = 30000;
 const uint8_t  RADIO_LATENCY_MS  = 1;     // air time + processing, estimate
-const uint16_t SNAP_MS           = 40;    // clock error above this: jump; below: ease in
+const uint16_t SNAP_MS           = 20;    // clock error above this: jump; below: ease in
 const uint16_t LINK_LOST_MS      = 2000;  // no packets for this long while running = link lost
 
 // ---- Pins ----
@@ -41,14 +41,34 @@ const uint8_t PIN_RADIO_CSN = 10;  // SPI: D11 MOSI, D12 MISO, D13 SCK (so no LE
   constexpr uint8_t NUM_PIXELS  = ZONE_A_LEDS + ZONE_B_LEDS + ZONE_C_LEDS;  // 1 m of 60 LED/m
   const uint8_t  BRIGHTNESS     = 64;   // 0-255 (64 = 25 %); LumaCue sets it from the brightness cap
   const uint16_t MAX_MILLIAMPS  = 500;  // FastLED scales brightness down to stay under this
+  // LED positions on the body (x, y 0-255) for the canvas effects, in strip
+  // order. LumaCue's firmware download fills these in from Costume Setup.
+  // PIX_POS strip begin
+  const uint8_t PIX_POS[NUM_PIXELS][2] PROGMEM = {
+    {84, 61}, {78, 69}, {73, 77}, {67, 84}, {62, 92}, {56, 100}, {51, 108}, {47, 115},
+    {42, 123}, {38, 131}, {171, 61}, {177, 69}, {182, 77}, {188, 84}, {193, 92}, {199, 100},
+    {204, 108}, {208, 115}, {213, 123}, {217, 131}, {96, 61}, {99, 66}, {103, 70}, {106, 75},
+    {109, 79}, {113, 84}, {116, 88}, {119, 93}, {123, 98}, {126, 102}, {129, 102}, {132, 98},
+    {136, 93}, {139, 88}, {142, 84}, {146, 79}, {149, 75}, {152, 70}, {156, 66}, {159, 61},
+    {111, 148}, {110, 158}, {108, 168}, {107, 178}, {105, 188}, {104, 197}, {103, 207}, {102, 217},
+    {101, 227}, {100, 237}, {144, 148}, {145, 158}, {147, 168}, {148, 178}, {150, 188}, {151, 197},
+    {152, 207}, {153, 217}, {154, 227}, {155, 237},
+  };
+  // PIX_POS strip end
 #else
   const uint8_t NUM_PIXELS = 3;         // one bi-colour LED per zone
   const uint8_t RED_PINS[3]   = {3, 5, 7};  // each via 220 ohm to the LED's red anode
   const uint8_t GREEN_PINS[3] = {4, 6, 8};  // each via 220 ohm to the green anode
+  // Position on the body (x, y 0-255) of each zone's LED, for the canvas effects.
+  // PIX_POS 5mm begin
+  const uint8_t PIX_POS[NUM_PIXELS][2] PROGMEM = {
+    {120, 96}, {128, 82}, {125, 193},
+  };
+  // PIX_POS 5mm end
 #endif
 
 // ---- Show data ----
-enum Effect : uint8_t { FX_OFF, FX_SOLID, FX_FLASH, FX_CHASE };
+enum Effect : uint8_t { FX_OFF, FX_SOLID, FX_FLASH, FX_CHASE, FX_RISE, FX_SWEEP, FX_RIPPLE };
 const uint8_t ZA = 1, ZB = 2, ZC = 4, ZALL = 7;
 
 struct Cue {
@@ -57,7 +77,7 @@ struct Cue {
   uint8_t  zoneMask;
   uint8_t  effect;
   uint8_t  r, g, b;
-  uint16_t param;  // FLASH: period ms (50 % duty, from the cue's start). CHASE: ms per lap.
+  uint16_t param;  // FLASH: period ms (50 % duty, from the cue's start). CHASE, RISE, SWEEP, RIPPLE: ms per lap.
 };
 
 // Demo show 1. Later cues win where they overlap.
@@ -106,6 +126,20 @@ uint8_t zoneOf(uint8_t i) {
 
 bool inMask(uint8_t i, uint8_t mask) { return mask & (1 << zoneOf(i)); }
 
+// Canvas effects (RISE / SWEEP / RIPPLE): where the band is, by each LED's
+// position on the body (PIX_POS, 0-255: x left -> right, y top -> bottom).
+// Same maths as LumaCue's lib/show/canvas.ts.
+const int16_t BAND_W = 48;
+
+uint8_t canvasCoord(uint8_t fx, uint8_t i) {
+  uint8_t x = pgm_read_byte(&PIX_POS[i][0]);
+  uint8_t y = pgm_read_byte(&PIX_POS[i][1]);
+  if (fx == FX_RISE) return 255 - y;
+  if (fx == FX_SWEEP) return x;
+  uint16_t d = (x > 128 ? x - 128 : 128 - x) + (y > 90 ? y - 90 : 90 - y);  // RIPPLE: distance from the chest
+  return d > 255 ? 255 : d;
+}
+
 void applyCue(const Cue& c, uint32_t t) {
   Px col = { c.r, c.g, c.b };
   Px off = { 0, 0, 0 };
@@ -116,6 +150,23 @@ void applyCue(const Cue& c, uint32_t t) {
                (c.effect == FX_FLASH && c.param && ((t - c.startMs) % c.param) < c.param / 2);
     for (uint8_t i = 0; i < NUM_PIXELS; i++)
       if (inMask(i, c.zoneMask)) pixels[i] = lit ? col : off;
+    return;
+  }
+
+  if (c.effect == FX_RISE || c.effect == FX_SWEEP || c.effect == FX_RIPPLE) {
+    // A soft band crosses the costume once per lap (param ms) and blends over the pixel.
+    if (!c.param) return;
+    int16_t centre = -BAND_W + (int16_t)((uint32_t)((t - c.startMs) % c.param) * (255 + 2 * BAND_W) / c.param);
+    for (uint8_t i = 0; i < NUM_PIXELS; i++) {
+      if (!inMask(i, c.zoneMask)) continue;
+      int16_t d = (int16_t)canvasCoord(c.effect, i) - centre;
+      if (d < 0) d = -d;
+      if (d >= BAND_W) continue;
+      int32_t k = 255 - (int32_t)d * 255 / BAND_W;
+      pixels[i].r += (int32_t)((int16_t)c.r - pixels[i].r) * k / 255;
+      pixels[i].g += (int32_t)((int16_t)c.g - pixels[i].g) * k / 255;
+      pixels[i].b += (int32_t)((int16_t)c.b - pixels[i].b) * k / 255;
+    }
     return;
   }
 

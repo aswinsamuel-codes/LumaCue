@@ -4,7 +4,8 @@ import { drawSilhouette } from '@/lib/show/body'
 import type { CostumeLayout } from '@/lib/show/body'
 import { frameMilliamps, renderDancer } from '@/lib/show/render'
 import type { ShowProject } from '@/lib/show/model'
-import { benchPixelCount, benchVisibleColor, benchZoneLeds, compileBenchCues, renderBench } from '@/lib/show/bench'
+import { benchPixelCount, benchPositions, benchVisibleColor, benchZoneLeds, compileBenchCues, renderBench } from '@/lib/show/bench'
+import { useCostumeStore } from '@/store/useCostumeStore'
 import type { BenchCue, BenchOutput } from '@/lib/show/bench'
 
 const CURRENT_LIMIT_MA = 1000
@@ -34,8 +35,8 @@ function grid(n: number, view: 'all' | 'single') {
  * zones are the firmware's zones A–C (a strip with the same zone sizes, or
  * one 5 mm LED per zone).
  */
-function renderBenchFrame(cues: BenchCue[], output: BenchOutput, layout: CostumeLayout, zoneLeds: number[], t: number, px: Uint8Array, f: Float32Array) {
-  renderBench(cues, t, output, px, zoneLeds)
+function renderBenchFrame(cues: BenchCue[], output: BenchOutput, layout: CostumeLayout, zoneLeds: number[], pos: Uint8Array, t: number, px: Uint8Array, f: Float32Array) {
+  renderBench(cues, t, output, px, zoneLeds, pos)
   f.fill(0)
   const sizes = benchZoneLeds(zoneLeds)
   layout.zones.slice(0, 3).forEach((z, zi) => {
@@ -63,6 +64,9 @@ export default function StageCanvas({ project, layout, timeMs, view, focusDancer
     [bench, project, zoneIds],
   )
   const benchPx = useMemo(() => new Uint8Array(benchPixelCount(bench ?? 'strip', zoneLeds) * 3), [bench, zoneLeds])
+  // LED positions on the body, as written into the firmware (PIX_POS) for the canvas effects.
+  const costumeZones = useCostumeStore((s) => s.zones)
+  const benchPos = useMemo(() => benchPositions(bench ?? 'strip', costumeZones), [bench, costumeZones])
 
   useEffect(() => {
     const el = canvas.current?.parentElement
@@ -100,7 +104,7 @@ export default function StageCanvas({ project, layout, timeMs, view, focusDancer
 
     dancers.forEach((d, k) => {
       if (dark) f.fill(0)
-      else if (bench && benchCues) renderBenchFrame(benchCues[d], bench, layout, zoneLeds, timeMs, benchPx, f)
+      else if (bench && benchCues) renderBenchFrame(benchCues[d], bench, layout, zoneLeds, benchPos, timeMs, benchPx, f)
       else renderDancer(project, layout, d, timeMs, f)
       const mA = frameMilliamps(f, brightness)
       peak = Math.max(peak, mA)
@@ -119,7 +123,8 @@ export default function StageCanvas({ project, layout, timeMs, view, focusDancer
         for (let i = 0; i < z.count; i++) {
           const o = (z.start + i) * 3
           if (f[o] + f[o + 1] + f[o + 2] > 12) continue
-          ctx.fillStyle = xray ? '#3a3a48' : '#2a2a34'
+          if (z.points[i].back && !xray) continue // the 2D view is the front; X-ray shows the back too
+          ctx.fillStyle = xray ? (z.points[i].back ? '#2e2e3a' : '#3a3a48') : '#2a2a34'
           ctx.beginPath()
           ctx.arc(z.points[i].x, z.points[i].y, 0.9, 0, Math.PI * 2)
           ctx.fill()
@@ -131,7 +136,15 @@ export default function StageCanvas({ project, layout, timeMs, view, focusDancer
           const o = (z.start + i) * 3
           const r = f[o], g = f[o + 1], b = f[o + 2]
           if (r + g + b <= 12) continue
-          const { x, y } = z.points[i]
+          const { x, y, back } = z.points[i]
+          // Back LEDs glow through faintly (lit fabric shows at the edges); X-ray shows them fully.
+          if (back && !xray) {
+            ctx.fillStyle = `rgba(${r | 0},${g | 0},${b | 0},0.07)`
+            ctx.beginPath()
+            ctx.arc(x, y, 3, 0, Math.PI * 2)
+            ctx.fill()
+            continue
+          }
           ctx.fillStyle = `rgba(${r | 0},${g | 0},${b | 0},0.16)`
           ctx.beginPath()
           ctx.arc(x, y, 3.6, 0, Math.PI * 2)
@@ -161,7 +174,7 @@ export default function StageCanvas({ project, layout, timeMs, view, focusDancer
       ctx.fillStyle = '#fde68a'
       ctx.fillText(`COSTUME VIEW · what the bench firmware lights (${bench === '5mm' ? '5 mm red/green LEDs, 1 per zone' : `WS2812B, zones ${benchZoneLeds(zoneLeds).join('/')} LEDs`}; zones after the 3rd stay dark)`, 10, size.h - 8)
     }
-  }, [project, layout, timeMs, view, focusDancer, brightness, xray, dark, size, bench, benchCues, benchPx, zoneLeds])
+  }, [project, layout, timeMs, view, focusDancer, brightness, xray, dark, size, bench, benchCues, benchPx, zoneLeds, benchPos])
 
   const handleClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (view === 'single' || !onPickDancer) return

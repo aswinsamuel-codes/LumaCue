@@ -1,12 +1,33 @@
 /**
  * Digital twin of one costume: where each LED sits on the body.
- * Coordinates are in a 100 × 200 front-view figure box.
- * LED order follows the paths, which is also the wiring order on the strip.
+ * Coordinates are in a 100 × 200 front-view figure box (as the audience sees
+ * the dancer). LED order follows the paths, which is also the wiring order on
+ * the strip. A zone is either a ready-made placement (arms, chest…) or lines
+ * the user drew on the front and back of the body ('custom').
  */
 
-export type Placement = 'arms' | 'chest' | 'legs' | 'head' | 'belt' | 'hands'
+export type Placement = 'arms' | 'chest' | 'legs' | 'head' | 'belt' | 'hands' | 'custom'
 
-export interface Pt { x: number; y: number }
+/** A point on the figure. `back` = on the back of the body (x still as seen from the front). */
+export interface Pt { x: number; y: number; back?: boolean }
+
+export type Side = 'front' | 'back'
+
+/** One drawn LED line, in strip order. Points use front-view coordinates on both sides. */
+export interface StripPath {
+  side: Side
+  points: Pt[]
+}
+
+/** What a zone needs for its LED positions. */
+export interface ZoneShape {
+  leds: number
+  placement: Placement
+  paths?: StripPath[]
+}
+
+export const MAX_PATH_POINTS = 64
+export const MAX_PATHS = 8
 
 const p = (x: number, y: number): Pt => ({ x, y })
 
@@ -17,7 +38,8 @@ function circle(cx: number, cy: number, r: number, segments = 18): Pt[] {
   })
 }
 
-export const PLACEMENTS: { id: Placement; label: string; paths: Pt[][] }[] = [
+/** Ready-made placements ('custom' is drawn by the user instead). */
+export const PLACEMENTS: { id: Exclude<Placement, 'custom'>; label: string; paths: Pt[][] }[] = [
   { id: 'arms', label: 'Arms', paths: [[p(34, 45), p(22, 78), p(14, 106)], [p(66, 45), p(78, 78), p(86, 106)]] },
   { id: 'chest', label: 'Chest (V)', paths: [[p(37, 46), p(50, 82), p(63, 46)]] },
   { id: 'legs', label: 'Legs', paths: [[p(44, 112), p(41, 152), p(39, 190)], [p(56, 112), p(59, 152), p(61, 190)]] },
@@ -26,7 +48,20 @@ export const PLACEMENTS: { id: Placement; label: string; paths: Pt[][] }[] = [
   { id: 'hands', label: 'Hand bands', paths: [circle(13, 113, 5, 12), circle(87, 113, 5, 12)] },
 ]
 
-const PLACEMENT_BY_ID = Object.fromEntries(PLACEMENTS.map((pl) => [pl.id, pl])) as Record<Placement, (typeof PLACEMENTS)[number]>
+const PLACEMENT_BY_ID = Object.fromEntries(PLACEMENTS.map((pl) => [pl.id, pl])) as Record<Exclude<Placement, 'custom'>, (typeof PLACEMENTS)[number]>
+
+export const PLACEMENT_LABELS: Record<Placement, string> = {
+  ...(Object.fromEntries(PLACEMENTS.map((pl) => [pl.id, pl.label])) as Record<Exclude<Placement, 'custom'>, string>),
+  custom: 'Drawn (custom)',
+}
+
+/** The lines a zone's LEDs follow: the drawn ones, or the preset's. */
+export function zonePaths(zone: ZoneShape): { side: Side; points: Pt[] }[] {
+  const drawn = zone.placement === 'custom' ? (zone.paths ?? []).filter((path) => path.points.length > 0) : []
+  if (drawn.length) return drawn
+  const preset = zone.placement === 'custom' ? PLACEMENT_BY_ID.belt : PLACEMENT_BY_ID[zone.placement] ?? PLACEMENT_BY_ID.belt
+  return preset.paths.map((points) => ({ side: 'front' as const, points }))
+}
 
 export interface ZoneLayout {
   id: string
@@ -58,21 +93,25 @@ function pointAt(path: Pt[], d: number): Pt {
   return path[path.length - 1]
 }
 
-/** Spreads `count` LEDs evenly along a placement's paths. */
-function sample(placement: Placement, count: number): Pt[] {
-  const paths = PLACEMENT_BY_ID[placement]?.paths ?? PLACEMENT_BY_ID.belt.paths
-  const lengths = paths.map(length)
+/** Spreads `count` LEDs evenly along a zone's lines (drawn or preset). */
+export function sampleZone(zone: ZoneShape, count = zone.leds): Pt[] {
+  const paths = zonePaths(zone)
+  // A single clicked point counts as a very short line, so its LEDs sit on that spot.
+  const lengths = paths.map((path) => Math.max(0.001, length(path.points)))
   const total = lengths.reduce((a, b) => a + b, 0)
-  // Share LEDs between sub-paths by length, so both arms get the same number.
+  // Share LEDs between lines by length, so both arms get the same number.
   const counts = lengths.map((L) => Math.floor((count * L) / total))
   for (let i = 0; counts.reduce((a, b) => a + b, 0) < count; i = (i + 1) % counts.length) counts[i]++
-  return paths.flatMap((path, k) => Array.from({ length: counts[k] }, (_, j) => pointAt(path, ((j + 0.5) / counts[k]) * lengths[k])))
+  return paths.flatMap((path, k) => Array.from({ length: counts[k] }, (_, j) => {
+    const q = pointAt(path.points, ((j + 0.5) / counts[k]) * length(path.points))
+    return path.side === 'back' ? { x: q.x, y: q.y, back: true } : { x: q.x, y: q.y }
+  }))
 }
 
-export function buildLayout(zones: { id: string; leds: number; placement: Placement }[]): CostumeLayout {
+export function buildLayout(zones: ({ id: string } & ZoneShape)[]): CostumeLayout {
   let start = 0
   const out = zones.map((z) => {
-    const zl: ZoneLayout = { id: z.id, start, count: z.leds, points: sample(z.placement, z.leds) }
+    const zl: ZoneLayout = { id: z.id, start, count: z.leds, points: sampleZone(z) }
     start += z.leds
     return zl
   })

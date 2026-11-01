@@ -4,7 +4,7 @@ import { PLACEMENTS } from '@/lib/show/body'
 import { benchZoneLeds } from '@/lib/show/bench'
 
 describe('costume templates', () => {
-  const placements = new Set(PLACEMENTS.map((p) => p.id))
+  const placements = new Set<string>(PLACEMENTS.map((p) => p.id))
   for (const t of COSTUME_TEMPLATES) {
     it(`${t.label}: valid zones with stable ids a, b, c…`, () => {
       expect(t.zones.map((z) => z.id)).toEqual('abcdefgh'.slice(0, t.zones.length).split(''))

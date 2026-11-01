@@ -4,3 +4,9 @@ node_modules/
 
 # Old app folder name (renamed to lumacue/); a stale dev server can recreate its cache
 pov-stage/
+
+# Local ESP32 toolchain (see tools/arduino-esp32/README.md)
+tools/arduino-esp32/*
+!tools/arduino-esp32/README.md
+!tools/arduino-esp32/arduino-cli.yaml
+!tools/arduino-esp32/compile.cmd

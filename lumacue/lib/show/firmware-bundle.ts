@@ -4,7 +4,8 @@
  */
 import { exportArduinoShow } from '@/lib/show/arduino-export'
 import type { ShowProject } from '@/lib/show/model'
-import { benchZoneLeds } from '@/lib/show/bench'
+import { benchPositions, benchZoneLeds } from '@/lib/show/bench'
+import type { ZoneShape } from '@/lib/show/body'
 
 export interface FirmwareTemplates {
   baseIno: string
@@ -28,11 +29,40 @@ const SHOW_LENGTH = /const uint32_t SHOW_LENGTH_MS(\s*)=\s*\d+;/
 const OUTPUT_MODE = /#define OUTPUT_MODE MODE_\w+/
 const ZONE_SIZES = /constexpr uint8_t ZONE_A_LEDS = \d+, ZONE_B_LEDS = \d+, ZONE_C_LEDS = \d+;/
 const BRIGHTNESS = /const uint8_t  BRIGHTNESS     = \d+;/
+// LED positions for the canvas effects, between marker comments (kept so the sketch can be filled again).
+const PIX_POS_STRIP = /([ \t]*)\/\/ PIX_POS strip begin\r?\n[\s\S]*?\/\/ PIX_POS strip end/
+const PIX_POS_5MM = /([ \t]*)\/\/ PIX_POS 5mm begin\r?\n[\s\S]*?\/\/ PIX_POS 5mm end/
+
+/** The PIX_POS table (x, y per pixel) as C, between its marker comments. */
+export function pixPosBlock(pos: Uint8Array, indent: string, which: 'strip' | '5mm'): string {
+  const pairs: string[] = []
+  for (let i = 0; i < pos.length / 2; i++) pairs.push(`{${pos[i * 2]}, ${pos[i * 2 + 1]}}`)
+  const rows: string[] = []
+  for (let i = 0; i < pairs.length; i += 8) rows.push(`${indent}  ${pairs.slice(i, i + 8).join(', ')},`)
+  return [
+    `${indent}// PIX_POS ${which} begin`,
+    `${indent}const uint8_t PIX_POS[NUM_PIXELS][2] PROGMEM = {`,
+    ...rows,
+    `${indent}};`,
+    `${indent}// PIX_POS ${which} end`,
+  ].join('\n')
+}
+
+/**
+ * Writes the LED position tables into a costume sketch: the strip table (both
+ * boards) and, in the bench sketch, the 5 mm table.
+ */
+export function fillPixPos(src: string, zones: ZoneShape[]) {
+  let out = replaceOnce(src, PIX_POS_STRIP, (_, indent) => pixPosBlock(benchPositions('strip', zones), indent, 'strip'), 'the PIX_POS strip markers')
+  if (PIX_POS_5MM.test(out)) out = out.replace(PIX_POS_5MM, (_, indent) => pixPosBlock(benchPositions('5mm', zones), indent, '5mm'))
+  return out
+}
 
 /** Strip settings taken from Costume Setup. */
 export interface StripSettings {
   zoneLeds: number[]     // LEDs per zone, in strip order (first 3 are used)
   brightnessPct: number  // brightness cap, 5–100 %
+  shapes?: ZoneShape[]   // where each zone sits on the body: preset or drawn lines (LED positions for the canvas effects)
 }
 
 // Always a function replacer: text like a show name may contain '$', which a
@@ -68,6 +98,8 @@ export function buildFirmware(
   costume = replaceOnce(costume, ZONE_SIZES, () => `constexpr uint8_t ZONE_A_LEDS = ${a}, ZONE_B_LEDS = ${b}, ZONE_C_LEDS = ${c};`, 'the ZONE_x_LEDS sizes')
   const level = Math.max(1, Math.min(255, Math.round((Math.max(0, Math.min(100, strip.brightnessPct)) * 255) / 100)))
   costume = replaceOnce(costume, BRIGHTNESS, () => `const uint8_t  BRIGHTNESS     = ${level};`, 'BRIGHTNESS')
+  const defaultShapes: ZoneShape[] = [{ leds: 20, placement: 'arms' }, { leds: 20, placement: 'chest' }, { leds: 20, placement: 'legs' }]
+  costume = fillPixPos(costume, [0, 1, 2].map((i) => ({ ...(strip.shapes?.[i] ?? defaultShapes[i]), leds: strip.zoneLeds[i] ?? 0 })))
 
   const base = len(t.baseIno)
 

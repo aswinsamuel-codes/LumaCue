@@ -30,7 +30,7 @@ describe('ESP32 firmware shares the bench rules (so the preview and simulator ap
   const espBase = readEsp('base/base.ino')
 
   it('renders cues with identical code', () => {
-    for (const sig of ['uint8_t zoneOf(uint8_t i) {', 'void applyCue(const Cue& c, uint32_t t) {', 'void render() {']) {
+    for (const sig of ['uint8_t zoneOf(uint8_t i) {', 'uint8_t canvasCoord(uint8_t fx, uint8_t i) {', 'void applyCue(const Cue& c, uint32_t t) {', 'void render() {']) {
       // The bench zoneOf has a 5 mm branch; compare the strip branch only.
       if (sig.startsWith('uint8_t zoneOf')) {
         expect(fn(espCostume, sig)).toContain('if (i < ZONE_A_LEDS + ZONE_B_LEDS) return 1;')

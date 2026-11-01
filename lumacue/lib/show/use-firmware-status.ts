@@ -24,7 +24,7 @@ export function useFirmwareStatus() {
       const rec = flashed[d]
       const state: FirmwareState = !rec
         ? 'never'
-        : rec.fingerprint === benchFingerprint(project, ids, d, { output: rec.output, board: rec.board, zoneLeds: zones.map((z) => z.leds), brightnessPct: brightness })
+        : rec.fingerprint === benchFingerprint(project, ids, d, { output: rec.output, board: rec.board, zoneLeds: zones.map((z) => z.leds), brightnessPct: brightness, shapes: zones })
           ? 'ok'
           : 'stale'
       return { dancer: d, state }

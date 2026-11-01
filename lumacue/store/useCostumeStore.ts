@@ -8,13 +8,14 @@ import type { LogType } from '@/store/useDashboardStore'
 import { PLACEMENTS } from '@/lib/show/body'
 import { parseCostume } from '@/lib/show/model'
 import { COSTUME_TEMPLATES } from '@/lib/show/templates'
-import type { Placement } from '@/lib/show/body'
+import type { Placement, StripPath } from '@/lib/show/body'
 
 export interface CostumeZone {
   id: string
   name: string
   leds: number
   placement: Placement   // where the strip sits on the body (digital twin)
+  paths?: StripPath[]    // drawn LED lines (front/back) when placement is 'custom'
 }
 
 interface CostumeState {

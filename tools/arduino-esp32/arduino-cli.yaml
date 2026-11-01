@@ -1,0 +1,14 @@
+# arduino-cli config for compile-checking LumaCue's ESP32 firmware.
+# Kept inside the repo folder (but out of git) so it doesn't touch the Arduino IDE's own setup.
+#
+# The ESP32 compiler can't run its own tools from a path with spaces (this repo is
+# under "D:\MY works\Hello World\"), so compile.cmd maps this folder to drive L:
+# with `subst` and these paths go through L:. Use compile.cmd rather than calling
+# arduino-cli directly.
+board_manager:
+  additional_urls:
+    - https://espressif.github.io/arduino-esp32/package_esp32_index.json
+directories:
+  data: L:/data
+  downloads: L:/downloads
+  user: L:/user

@@ -1,8 +1,9 @@
 'use client'
 import { useState } from 'react'
 import { useCostumeStore } from '@/store/useCostumeStore'
-import { PLACEMENTS } from '@/lib/show/body'
+import { PLACEMENTS, PLACEMENT_LABELS } from '@/lib/show/body'
 import type { Placement } from '@/lib/show/body'
+import PathEditor from '@/components/timeline/PathEditor'
 import { COSTUME_TEMPLATES } from '@/lib/show/templates'
 import { CURRENT_LIMIT_MA, MA_FULL_WHITE, MA_ONE_COLOUR } from '@/lib/show/checklist'
 
@@ -12,6 +13,8 @@ const USABLE_FRACTION = 0.8   // conversion losses and cut-off, assumed
 export default function CostumeSetup() {
   const { zones, brightness, addZone, updateZone, deleteZone, setBrightness, setZones } = useCostumeStore()
   const [newName, setNewName] = useState('')
+  const [drawing, setDrawing] = useState<string | null>(null) // zone id whose LED lines are being drawn
+  const drawingZone = zones.find((z) => z.id === drawing) ?? null
 
   const totalLeds = zones.reduce((n, z) => n + z.leds, 0)
   const worstMa = Math.round(totalLeds * MA_FULL_WHITE * (brightness / 100))
@@ -58,12 +61,28 @@ export default function CostumeSetup() {
               />
               <select
                 value={zone.placement}
-                onChange={(e) => updateZone(zone.id, { placement: e.target.value as Placement })}
+                onChange={(e) => {
+                  const placement = e.target.value as Placement
+                  updateZone(zone.id, { placement })
+                  if (placement === 'custom') setDrawing(zone.id)
+                }}
                 className="w-28 bg-black/40 border border-white/10 rounded-md px-1 py-1.5 text-white text-xs focus:outline-none focus:border-purple-500/50"
                 aria-label={`${zone.name} position on the body`}
               >
                 {PLACEMENTS.map((pl) => <option key={pl.id} value={pl.id}>{pl.label}</option>)}
+                <option value="custom">{PLACEMENT_LABELS.custom}</option>
               </select>
+              <button
+                onClick={() => {
+                  if (zone.placement !== 'custom') updateZone(zone.id, { placement: 'custom', paths: zone.paths ?? [] })
+                  setDrawing(zone.id)
+                }}
+                className={`w-7 h-7 rounded-md border text-xs transition-all ${zone.placement === 'custom' ? 'border-purple-500/50 bg-purple-500/20 text-purple-200' : 'border-white/10 bg-white/5 text-white/50 hover:text-white'}`}
+                title="Draw where this strip runs on the costume (front and back)"
+                aria-label={`Draw ${zone.name} on the costume`}
+              >
+                ✎
+              </button>
               <input
                 type="number"
                 min={1}
@@ -129,6 +148,15 @@ export default function CostumeSetup() {
         <Stat label="One colour" value={`${typicalMa} mA`} />
         <Stat label={`${POWER_BANK_MAH} mAh bank`} value={runtimeH ? `~${runtimeH.toFixed(1)} h` : '—'} />
       </div>
+      {drawingZone && (
+        <PathEditor
+          zone={drawingZone}
+          allZones={zones}
+          onChange={(paths) => updateZone(drawingZone.id, { placement: 'custom', paths })}
+          onLeds={(leds) => updateZone(drawingZone.id, { leds })}
+          onClose={() => setDrawing(null)}
+        />
+      )}
       <p className={`text-[10px] font-mono mt-3 ${overLimit ? 'text-red-400/80' : 'text-white/20'}`}>
         {overLimit
           ? `Full white would draw over ${CURRENT_LIMIT_MA} mA: lower the brightness cap or the firmware must limit current.`

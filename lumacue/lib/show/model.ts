@@ -1,12 +1,12 @@
-import { PLACEMENTS } from '@/lib/show/body'
-import type { Placement } from '@/lib/show/body'
+import { MAX_PATHS, MAX_PATH_POINTS, PLACEMENTS } from '@/lib/show/body'
+import type { Placement, StripPath } from '@/lib/show/body'
 
 /**
  * LumaCue show file. A show is a list of clips on tracks: one track drives
  * every costume, and each dancer has their own track layered on top.
  */
 
-export type EffectId = 'solid' | 'fade' | 'pulse' | 'strobe' | 'chase' | 'wipe' | 'rainbow' | 'twinkle' | 'blackout'
+export type EffectId = 'solid' | 'fade' | 'pulse' | 'strobe' | 'chase' | 'wipe' | 'rainbow' | 'twinkle' | 'blackout' | 'rise' | 'sweep' | 'ripple'
 
 /** Track number for clips that play on every costume. Dancer tracks are 0, 1, 2… */
 export const ALL_DANCERS = -1
@@ -80,6 +80,10 @@ export const EFFECTS: EffectInfo[] = [
   { id: 'rainbow', label: 'Rainbow', short: 'RBW', hint: 'Moving colour wheel', usesSpeed: true, noColor: true },
   { id: 'twinkle', label: 'Twinkle', short: 'TWK', hint: 'Random sparkles', usesSpeed: true },
   { id: 'blackout', label: 'Blackout', short: 'OFF', hint: 'Forces LEDs dark (masks clips below)', noColor: true },
+  // Canvas effects: move across the body by LED position (lib/show/canvas.ts)
+  { id: 'rise', label: 'Rise', short: 'RIS', hint: 'A band of light travels up the body', usesSpeed: true },
+  { id: 'sweep', label: 'Sweep', short: 'SWP', hint: 'A band of light crosses the body, left to right', usesSpeed: true },
+  { id: 'ripple', label: 'Ripple', short: 'RPL', hint: 'Rings of light spread out from the chest', usesSpeed: true },
 ]
 
 export const EFFECT_BY_ID = Object.fromEntries(EFFECTS.map((e) => [e.id, e])) as Record<EffectId, EffectInfo>
@@ -127,7 +131,7 @@ export function formatShowTime(ms: number) {
 
 /** Costume setup saved next to the show in a .lumacue.json file, so the file works on another laptop. */
 export interface SavedCostume {
-  zones: { id: string; name: string; leds: number; placement: Placement }[]
+  zones: { id: string; name: string; leds: number; placement: Placement; paths?: StripPath[] }[]
   brightness: number
 }
 
@@ -140,7 +144,22 @@ export function showFileJson(project: ShowProject, costume: SavedCostume) {
   return JSON.stringify({ ...project, costume }, null, 2)
 }
 
-const PLACEMENT_IDS = new Set<string>(PLACEMENTS.map((p) => p.id))
+const PLACEMENT_IDS = new Set<string>([...PLACEMENTS.map((p) => p.id), 'custom'])
+
+/** Drawn LED lines from a file or storage: kept only if they are well-formed, clamped to the figure. */
+function parsePaths(x: unknown): StripPath[] | undefined {
+  if (!Array.isArray(x)) return undefined
+  const clamp = (v: number, hi: number) => Math.max(0, Math.min(hi, v))
+  const paths = x.slice(0, MAX_PATHS).flatMap((raw): StripPath[] => {
+    const r = raw as { side?: unknown; points?: unknown }
+    if (!r || (r.side !== 'front' && r.side !== 'back') || !Array.isArray(r.points)) return []
+    const points = r.points.slice(0, MAX_PATH_POINTS)
+      .filter((q): q is { x: number; y: number } => !!q && Number.isFinite((q as { x: number }).x) && Number.isFinite((q as { y: number }).y))
+      .map((q) => ({ x: Math.round(clamp(q.x, 100) * 10) / 10, y: Math.round(clamp(q.y, 200) * 10) / 10 }))
+    return points.length ? [{ side: r.side, points }] : []
+  })
+  return paths.length ? paths : undefined
+}
 
 /** Checks a saved costume setup (show file or browser storage); null if it can't be used. */
 export function parseCostume(x: unknown): SavedCostume | null {
@@ -153,7 +172,13 @@ export function parseCostume(x: unknown): SavedCostume | null {
   )
   if (!zones.length) return null
   const brightness = typeof r.brightness === 'number' && Number.isFinite(r.brightness) ? Math.max(5, Math.min(100, Math.round(r.brightness))) : 25
-  return { zones: zones.map((z) => ({ id: z.id, name: z.name, leds: Math.round(z.leds), placement: z.placement })), brightness }
+  return {
+    zones: zones.map((z) => {
+      const paths = z.placement === 'custom' ? parsePaths((z as { paths?: unknown }).paths) : undefined
+      return { id: z.id, name: z.name, leds: Math.round(z.leds), placement: z.placement, ...(paths ? { paths } : {}) }
+    }),
+    brightness,
+  }
 }
 
 const EFFECT_IDS = new Set<string>(EFFECTS.map((e) => e.id))

@@ -10,7 +10,7 @@ const cue = (over: Partial<BenchCue>): BenchCue => ({ startMs: 0, durationMs: 10
 
 describe('firmware contract (TS port must match test_costume.ino)', () => {
   it('has the same effect enum, zone masks and strip layout', () => {
-    expect(ino).toMatch(/enum Effect : uint8_t \{ FX_OFF, FX_SOLID, FX_FLASH, FX_CHASE \};/)
+    expect(ino).toMatch(/enum Effect : uint8_t \{ FX_OFF, FX_SOLID, FX_FLASH, FX_CHASE, FX_RISE, FX_SWEEP, FX_RIPPLE \};/)
     expect(ino).toMatch(/const uint8_t ZA = 1, ZB = 2, ZC = 4, ZALL = 7;/)
     expect(ino).toMatch(/constexpr uint8_t ZONE_A_LEDS = 20, ZONE_B_LEDS = 20, ZONE_C_LEDS = 20;/)
     expect(ino).toMatch(/constexpr uint8_t NUM_PIXELS {2}= ZONE_A_LEDS \+ ZONE_B_LEDS \+ ZONE_C_LEDS;/)

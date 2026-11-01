@@ -1,6 +1,10 @@
 'use client'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import StageCanvas from '@/components/timeline/StageCanvas'
+import dynamic from 'next/dynamic'
+import { useViewStore } from '@/store/useViewStore'
+
+const Stage3D = dynamic(() => import('@/components/timeline/Stage3D'), { ssr: false })
 import BenchTestLog from '@/components/showmode/BenchTestLog'
 import { buildLayout } from '@/lib/show/body'
 import { formatShowTime } from '@/lib/show/model'
@@ -25,6 +29,7 @@ export default function ShowModeView({ active = true }: { active?: boolean }) {
     connectBase, connectSimulator, disconnectBase, arm, start, blackout, toggleBeacons, showEnded, setMusicSync, syncToMusic, setSpeakerDelay, measureDrift,
   } = useCostumeStore()
   const pb = useShowPlayback()
+  const { view3d, setView3d } = useViewStore()
   const layout = useMemo(() => buildLayout(zones), [zones])
   // Which costumes carry the show as it is now (by the last firmware download for each dancer).
   const { perDancer: firmware, toUpdate: staleCount } = useFirmwareStatus()
@@ -163,7 +168,16 @@ export default function ShowModeView({ active = true }: { active?: boolean }) {
       {/* View-only digital twin */}
       <div className="relative flex-1 min-w-0 rounded-xl border border-white/10 overflow-hidden">
         {/* The costumes run speakerDelayMs behind the laptop's music, so the twin does too. */}
-        <StageCanvas project={project} layout={layout} timeMs={Math.max(0, pb.timeMs - speakerDelayMs)} view="all" focusDancer={-1} brightness={brightness} xray={false} dark={!running} />
+        {view3d
+          ? <Stage3D project={project} layout={layout} timeMs={Math.max(0, pb.timeMs - speakerDelayMs)} view="all" focusDancer={-1} dark={!running} />
+          : <StageCanvas project={project} layout={layout} timeMs={Math.max(0, pb.timeMs - speakerDelayMs)} view="all" focusDancer={-1} brightness={brightness} xray={false} dark={!running} />}
+        <button
+          onClick={() => setView3d(!view3d)}
+          className="absolute top-2 right-2 z-10 px-2.5 py-1.5 rounded-md border text-[11px] font-mono bg-white/5 border-white/10 text-white/60 hover:bg-white/10 hover:text-white"
+          title="Switch the twin between 2D and 3D"
+        >
+          {view3d ? '3D' : '2D'}
+        </button>
         <p className="absolute bottom-2 left-3 text-white/25 text-[10px] font-mono">
           Simulation of &quot;{project.name}&quot; · dark until START
         </p>

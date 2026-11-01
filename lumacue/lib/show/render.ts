@@ -2,7 +2,8 @@
  * Turns a show into LED colours at a moment in time. The digital twin draws
  * exactly what this returns, and the costume firmware will run the same rules.
  */
-import type { CostumeLayout } from '@/lib/show/body'
+import type { CostumeLayout, Pt } from '@/lib/show/body'
+import { bandLevel, canvasCoord, isCanvasEffect, toCanvas } from '@/lib/show/canvas'
 import { ALL_DANCERS, darkZonesAt } from '@/lib/show/model'
 import type { Clip, ShowProject } from '@/lib/show/model'
 
@@ -37,11 +38,25 @@ function rand(a: number, b: number) {
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296
 }
 
+/** Lap time of a moving effect (chase, canvas effects): ms for one pass. */
+export function lapMs(speed: number) {
+  return 2000 / speedHz(speed)
+}
+
 /**
- * Colour and opacity of LED `i` (of `n` in the zone) for one clip.
- * tl = ms since the clip started. Writes into out[0..3] (r, g, b, alpha).
+ * Colour and opacity of LED `i` (of `n` in the zone, at position `pos` on the
+ * body) for one clip. tl = ms since the clip started. Writes into out[0..3]
+ * (r, g, b, alpha).
  */
-function evalEffect(c: Clip, tl: number, i: number, n: number, out: Float32Array) {
+function evalEffect(c: Clip, tl: number, i: number, n: number, pos: Pt | undefined, out: Float32Array) {
+  if (isCanvasEffect(c.effect)) {
+    // Same integer maths as the firmware: the band blends over what's below.
+    const [r, g, b] = hexToRgb(c.color)
+    const [x, y] = pos ? toCanvas(pos) : [128, 128]
+    const k = bandLevel(Math.max(0, Math.floor(tl)), Math.round(lapMs(c.speed)), canvasCoord(c.effect, x, y))
+    out[0] = r; out[1] = g; out[2] = b; out[3] = k / 255
+    return
+  }
   const [r, g, b] = hexToRgb(c.color)
   const hz = speedHz(c.speed)
   const t = tl / 1000
@@ -116,7 +131,7 @@ export function renderDancer(project: ShowProject, layout: CostumeLayout, dancer
     for (const zone of layout.zones) {
       if (clip.zones.length && !clip.zones.includes(zone.id)) continue
       for (let i = 0; i < zone.count; i++) {
-        evalEffect(clip, tl, i, zone.count, px)
+        evalEffect(clip, tl, i, zone.count, zone.points[i], px)
         const a = px[3]
         if (a <= 0) continue
         const o = (zone.start + i) * 3

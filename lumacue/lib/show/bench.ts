@@ -2,16 +2,25 @@
  * The bench costume (firmware/bench_sync_test/test_costume) in TypeScript.
  *
  * compileBenchCues() turns one dancer's clips into the firmware's cue table
- * (3 zones, effects OFF/SOLID/FLASH/CHASE). renderBench() is a line-by-line
+ * (3 zones, effects OFF/SOLID/FLASH/CHASE and the canvas effects RISE/SWEEP/RIPPLE,
+ * which use each LED's position on the body: benchPositions()/PIX_POS). renderBench() is a line-by-line
  * port of the sketch's render(), so the Show Studio can show exactly what the
  * Nano will light, and tests can compare it with the editor's own preview.
  * If you change applyCue()/render() in test_costume.ino, change this too.
  */
 import { ALL_DANCERS } from '@/lib/show/model'
 import type { Clip, EffectId, ShowProject } from '@/lib/show/model'
-import { activeClips, hexToRgb, speedHz } from '@/lib/show/render'
+import { activeClips, hexToRgb, lapMs, speedHz } from '@/lib/show/render'
+import { buildLayout } from '@/lib/show/body'
+import { sampleZone } from '@/lib/show/body'
+import type { ZoneShape } from '@/lib/show/body'
+import { bandLevel, blend, canvasCoord, toCanvas } from '@/lib/show/canvas'
+import type { CanvasEffect } from '@/lib/show/canvas'
 
-export type BenchFx = 'FX_OFF' | 'FX_SOLID' | 'FX_FLASH' | 'FX_CHASE'
+export type BenchFx = 'FX_OFF' | 'FX_SOLID' | 'FX_FLASH' | 'FX_CHASE' | 'FX_RISE' | 'FX_SWEEP' | 'FX_RIPPLE'
+
+const CANVAS_FX: Record<CanvasEffect, BenchFx> = { rise: 'FX_RISE', sweep: 'FX_SWEEP', ripple: 'FX_RIPPLE' }
+const FX_CANVAS: Partial<Record<BenchFx, CanvasEffect>> = { FX_RISE: 'rise', FX_SWEEP: 'sweep', FX_RIPPLE: 'ripple' }
 export type BenchOutput = '5mm' | 'strip'
 
 export interface BenchCue {
@@ -156,6 +165,12 @@ function compileWithStep(project: ShowProject, zoneIds: string[], dancer: number
         notes.add(`Fade is played in ${stepMs} ms colour steps.`)
         break
       }
+      case 'rise':
+      case 'sweep':
+      case 'ripple':
+        // The firmware moves the band by each LED's position (PIX_POS), like the preview.
+        push(start, end, mask, CANVAS_FX[c.effect], rgb, lapMs(c.speed))
+        break
       case 'rainbow': {
         const hz = speedHz(c.speed)
         steps(start, end, (t0, t1) => {
@@ -225,11 +240,42 @@ function zoneMap(output: BenchOutput, zoneLeds: number[]) {
   return m
 }
 
+/** A costume zone as the firmware needs it: LED count and where it sits on the body (preset or drawn lines). */
+export type BenchZone = ZoneShape
+
+const DEFAULT_SHAPES: ZoneShape[] = [{ leds: 20, placement: 'arms' }, { leds: 20, placement: 'chest' }, { leds: 20, placement: 'legs' }]
+
+/**
+ * Position on the body (0–255 x, y) of every firmware pixel: the PIX_POS table
+ * LumaCue writes into the sketch. Strip: each LED along its zone's path, as in
+ * the digital twin. 5 mm: one LED per zone, at the middle of that zone's path.
+ */
+export function benchPositions(output: BenchOutput, zones: BenchZone[] = []): Uint8Array {
+  const shapes = [0, 1, 2].map((i) => zones[i] ?? DEFAULT_SHAPES[i])
+  if (output === '5mm') {
+    const out = new Uint8Array(6)
+    shapes.forEach((shape, i) => {
+      const pts = sampleZone(shape, 9)
+      const [x, y] = toCanvas({ x: pts.reduce((s, p) => s + p.x, 0) / pts.length, y: pts.reduce((s, p) => s + p.y, 0) / pts.length })
+      out[i * 2] = x
+      out[i * 2 + 1] = y
+    })
+    return out
+  }
+  const sizes = benchZoneLeds(zones.length ? zones.map((z) => z.leds) : DEFAULT_ZONE_LEDS)
+  const layout = buildLayout(shapes.map((shape, i) => ({ id: String(i), ...shape, leds: sizes[i] })))
+  const out = new Uint8Array((sizes[0] + sizes[1] + sizes[2]) * 2)
+  let i = 0
+  for (const z of layout.zones) for (const p of z.points) { const [x, y] = toCanvas(p); out[i * 2] = x; out[i * 2 + 1] = y; i++ }
+  return out
+}
+
 /**
  * Port of render()/applyCue() in test_costume.ino. Writes RGB per pixel into
- * `out` (pixels × 3). zoneLeds = the strip's zone sizes, as in the firmware.
+ * `out` (pixels × 3). zoneLeds = the strip's zone sizes, as in the firmware;
+ * pos = benchPositions() (PIX_POS), needed for the canvas effects.
  */
-export function renderBench(cues: BenchCue[], t: number, output: BenchOutput, out: Uint8Array, zoneLeds = DEFAULT_ZONE_LEDS) {
+export function renderBench(cues: BenchCue[], t: number, output: BenchOutput, out: Uint8Array, zoneLeds = DEFAULT_ZONE_LEDS, pos?: Uint8Array) {
   const zoneOf = zoneMap(output, zoneLeds)
   const n = zoneOf.length
   out.fill(0)
@@ -241,6 +287,17 @@ export function renderBench(cues: BenchCue[], t: number, output: BenchOutput, ou
     if (c.fx === 'FX_OFF' || c.fx === 'FX_SOLID' || c.fx === 'FX_FLASH') {
       const lit = c.fx === 'FX_SOLID' || (c.fx === 'FX_FLASH' && c.param > 0 && (t - c.startMs) % c.param < Math.floor(c.param / 2))
       for (let i = 0; i < n; i++) if (inMask(i, c.zoneMask)) { if (lit) set(i, c.r, c.g, c.b); else set(i, 0, 0, 0) }
+      continue
+    }
+    const canvas = FX_CANVAS[c.fx]
+    if (canvas) {
+      // Canvas effects: a soft band moves by LED position and blends over the pixel.
+      if (!c.param || !pos) continue
+      for (let i = 0; i < n; i++) {
+        if (!inMask(i, c.zoneMask)) continue
+        const k = bandLevel(t - c.startMs, c.param, canvasCoord(canvas, pos[i * 2], pos[i * 2 + 1]))
+        set(i, blend(out[i * 3], c.r, k), blend(out[i * 3 + 1], c.g, k), blend(out[i * 3 + 2], c.b, k))
+      }
       continue
     }
     // FX_CHASE
@@ -318,6 +375,7 @@ export function benchFidelity(
   stepMs = 50,
   output: BenchOutput = 'strip',
   zoneLeds = DEFAULT_ZONE_LEDS,
+  pos?: Uint8Array,
 ): FidelityReport {
   const { cues } = compileBenchCues(project, zoneIds, dancer, output)
   const sizes = benchZoneLeds(zoneLeds)
@@ -327,7 +385,7 @@ export function benchFidelity(
   const perClip = new Map<Clip, { bad: number; n: number }>()
 
   for (let t = stepMs / 2; t < project.lengthMs; t += stepMs) {
-    renderBench(cues, t, output, px, zoneLeds)
+    renderBench(cues, t, output, px, zoneLeds, pos)
     const editor = renderZones(t)
     let badHere = 0
     for (let z = 0; z < zones; z++) {
@@ -377,6 +435,7 @@ export interface BenchHardware {
   board?: string          // 'nano' (default) or 'esp32'
   zoneLeds: number[]
   brightnessPct: number
+  shapes?: ZoneShape[]     // where each zone sits on the body: preset or drawn lines (PIX_POS for the canvas effects)
 }
 
 /**
@@ -388,6 +447,8 @@ export function benchFingerprint(project: ShowProject, zoneIds: string[], dancer
   const { cues } = compileBenchCues(project, zoneIds, dancer, hw?.output)
   const board = hw?.board && hw.board !== 'nano' ? `${hw.board}:` : ''
   const settings = !hw ? '' : board + (hw.output === '5mm' ? '5mm|' : `strip:${benchZoneLeds(hw.zoneLeds).join(',')}:${Math.round(hw.brightnessPct)}|`)
+    // Body positions only matter to the costume when it plays a canvas effect.
+    + (hw.shapes?.length && cues.some((c) => FX_CANVAS[c.fx]) ? `pos:${Array.from(benchPositions(hw.output, hw.shapes)).join(',')}|` : '')
   const text = `${settings}${Math.round(project.lengthMs)}|` + cues.map((c) => `${c.startMs},${c.durationMs},${c.zoneMask},${c.fx},${c.r},${c.g},${c.b},${c.param}`).join(';')
   let h = 0x811c9dc5
   for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 0x01000193)
