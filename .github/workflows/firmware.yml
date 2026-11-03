@@ -1,0 +1,49 @@
+# Compiles every LumaCue firmware sketch in the cloud and publishes ready-to-flash files.
+# Why in the cloud: on the development laptop, Windows Smart App Control blocks the ESP32
+# compiler, so firmware is built here and flashed from the browser (see firmware/esp32/README.md).
+name: Firmware build
+
+on:
+  push:
+    paths:
+      - 'firmware/**'
+      - '.github/workflows/firmware.yml'
+      - '.github/scripts/build-firmware.sh'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: arduino/setup-arduino-cli@v2
+
+      # Boards and libraries pinned to the versions LumaCue was checked with.
+      - name: Cache boards and libraries
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.arduino15
+            ~/Arduino/libraries
+          key: arduino-avr-1.8.7-esp32-3.3.12-rf24-1.6.0-fastled-3.10.8
+
+      - name: Install boards and libraries
+        run: |
+          arduino-cli config init --overwrite
+          arduino-cli config add board_manager.additional_urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          arduino-cli core update-index
+          arduino-cli core install arduino:avr@1.8.7 esp32:esp32@3.3.12
+          arduino-cli lib install RF24@1.6.0 FastLED@3.10.8
+
+      - name: Compile every sketch
+        run: bash .github/scripts/build-firmware.sh
+
+      - name: Upload ready-to-flash files
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lumacue-firmware
+          path: build/out
+          if-no-files-found: warn
