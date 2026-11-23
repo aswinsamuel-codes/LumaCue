@@ -66,8 +66,10 @@ The browser flasher talks to the board through Chrome's Web Serial, so nothing n
 | From | To |
 |---|---|
 | ESP32 GPIO 5 → ~330 Ω resistor | Strip DIN |
-| Power bank 5 V | Strip 5 V **and** ESP32 5V/VIN pin |
-| Power bank GND | Strip GND **and** ESP32 GND (common ground) |
+| 2S LiPo T-plug → 2S protection board (B+, B−; middle wire from the 3-pin balance lead to BM) | Battery in. Charge the pack **off the costume** on the balance charger |
+| Protection board P+ → rocker switch → buck IN+ ; P− → buck IN− | Costume power switch (emergency cut-off) |
+| Buck (5 V BEC) **5 V** out | Strip 5 V **and** ESP32 5V/VIN pin (check 5.0–5.2 V with a meter first) |
+| Buck GND out | Strip GND **and** ESP32 GND (common ground) |
 | 1000 µF (or 100 µF from the kit) | Across strip 5 V / GND, at the strip input |
 
 **3.3 V data → 5 V strip:** the ESP32's 3.3 V data signal is below the WS2812B's specified input-high level at 5 V. It usually works with a short data wire, but that isn't guaranteed. If the first LED flickers or shows wrong colours, add a 74AHCT125 level shifter, or run the first LED from a slightly lower supply. **Test this on the bench before building 10 costumes.**
