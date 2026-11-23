@@ -2,6 +2,21 @@
 
 All notable changes to LumaCue. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.2.0] - 2026-11-23 (desktop app)
+
+### Added
+- **Desktop app** for Windows (`.exe`), Linux (`.deb`, AppImage) and macOS (`.dmg`, Intel and Apple Silicon), built with Electron. It has its own window, an animated splash screen, a native USB-port picker for the base station, and bundled costume firmware.
+- New **LumaCue logo** (an "L" made of LED dots with a light-sweep arc) and an animated login screen.
+- **Docker image** for the web version (`lumacue/Dockerfile`).
+- GitHub Actions: `Desktop release` builds and tests all installers on version tags, and `Docker image` builds and smoke-tests the container.
+
+### Security
+- The fixed login code is replaced by a **user-chosen access code**, stored as a salted PBKDF2-SHA256 hash, with an attempt lockout.
+- Desktop hardening: sandbox, context isolation, no Node.js in pages, navigation and popup locks, a minimal permission set, and the local server on 127.0.0.1 only with DNS-rebinding protection.
+- Raspberry Pi hardware server: `WS_TOKEN` access token, `WS_ALLOWED_ORIGINS`, and a 16 KB message limit.
+- Dependency updates: Next.js 16.4.6 (critical DoS advisory), Electron 42.11.18, vitest 5, ws 8.23, plus patched PostCSS, sharp, nanoid, source-map-js and brace-expansion.
+- `SECURITY.md` with the threat model and private vulnerability reporting.
+
 ## [0.1.0] - 2026-11-23 (first public release, alpha)
 
 The first open-source release of LumaCue.
@@ -37,3 +52,4 @@ The first open-source release of LumaCue.
 - The login screen uses a fixed access code checked in the browser. It is replaced by a hashed, user-chosen code in the upcoming desktop release.
 
 [0.1.0]: https://github.com/aswinsamuel-codes/LumaCue/releases/tag/v0.1.0
+[0.2.0]: https://github.com/aswinsamuel-codes/LumaCue/releases/tag/v0.2.0

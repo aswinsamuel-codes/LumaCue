@@ -57,7 +57,13 @@ LumaCue is a complete toolchain for **synchronised LED costume shows**: a crew o
 | [`firmware/shows/`](firmware/shows/README.md) | Drop a downloaded show here and GitHub Actions compiles every costume's firmware |
 | [`led-dance-research/`](led-dance-research/README.md) | Research, hardware review, decision log and session reports |
 
-## Quick start
+## Download
+
+Get the desktop app from **[Releases](https://github.com/aswinsamuel-codes/LumaCue/releases)**: Windows `.exe`, Linux `.deb` / AppImage, or macOS `.dmg` (Intel and Apple Silicon). The installers are not code-signed yet. On Windows choose *More info → Run anyway*; on macOS right-click the app and choose *Open*.
+
+Prefer Docker? `docker build -f lumacue/Dockerfile -t lumacue .` then `docker run -p 127.0.0.1:3000:3000 lumacue`, and open http://localhost:3000 in Chrome or Edge.
+
+## Quick start (from source)
 
 Requirements: Node.js 20+, Chrome or Edge (for USB to the base station).
 
@@ -93,7 +99,7 @@ The tests keep the TypeScript twin and the C++ firmware in step: the costume ren
 - [ ] First run on real hardware: bench test T1–T12, then a full costume
 - [ ] First ESP32 compile and flash (CI build is ready)
 - [ ] Live show with about 10 dancers (December 2026), then a demo video
-- [ ] Desktop app (Windows) with a native USB port picker
+- [x] Desktop app for Windows, Linux and macOS (v0.2.0)
 - [ ] [PoseCue](https://github.com/aswinsamuel-codes/PoseCue): film a dancer and generate cues from their moves
 - [ ] Signed radio packets, so other transmitters can't inject commands
 - [ ] DMX / Art-Net output for stage lights
@@ -102,7 +108,7 @@ The tests keep the TypeScript twin and the C++ firmware in step: the costume ren
 
 Issues and pull requests are welcome. Run `npm run check` before opening a pull request. If you change the costume firmware, change its TypeScript port in `lumacue/lib/show/bench.ts` too: the tests will tell you if they drift apart.
 
-Security problems: please report them privately (see [SECURITY.md](lumacue/SECURITY.md) once the desktop release lands, or GitHub's *Report a vulnerability* button).
+Security problems: please report them privately, as described in [SECURITY.md](lumacue/SECURITY.md).
 
 ## License
 
