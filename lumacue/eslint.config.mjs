@@ -12,10 +12,11 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    "dist-desktop/**",
   ]),
-  // The Raspberry Pi hardware server is plain Node.js (CommonJS).
+  // The Raspberry Pi hardware server and the Electron shell are plain Node.js (CommonJS).
   {
-    files: ["hardware/**/*.js"],
+    files: ["hardware/**/*.js", "desktop/**/*.cjs"],
     rules: {
       "@typescript-eslint/no-require-imports": "off",
       "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],

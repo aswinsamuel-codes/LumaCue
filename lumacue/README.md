@@ -11,7 +11,18 @@ npm install
 npm run dev          # http://localhost:3000  (Chrome or Edge for USB to the base station)
 ```
 
-The login access code is in `components/LoginPage.tsx`. It's a client-side check only, not real security.
+On first start LumaCue asks you to **choose an access code** for the show laptop. Only a salted hash is stored, and there is no built-in default code. See [SECURITY.md](SECURITY.md).
+
+### Desktop app (Windows)
+
+LumaCue also runs as a native desktop app (Electron) with its own window, an animated splash screen, and a native USB-port picker for the base station.
+
+```bash
+npm run desktop          # build Show Studio, then open it as a desktop app
+npm run desktop:dist     # build the Windows installer into dist-desktop/
+```
+
+The app starts Show Studio inside itself on `127.0.0.1` (never reachable from the network) and bundles the costume firmware, so **Costume firmware** downloads work offline. For live UI development, run `npm run dev` and then `npm run desktop:dev` in a second terminal.
 
 ## Workflow
 

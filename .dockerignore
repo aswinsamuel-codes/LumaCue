@@ -1,0 +1,11 @@
+**/node_modules
+**/.next
+lumacue/dist-desktop
+lumacue/tsconfig.tsbuildinfo
+pov-stage
+tools
+led-dance-research
+.git
+.github
+**/*.log
+**/.env*

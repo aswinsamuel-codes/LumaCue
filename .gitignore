@@ -10,3 +10,6 @@ tools/arduino-esp32/*
 !tools/arduino-esp32/README.md
 !tools/arduino-esp32/arduino-cli.yaml
 !tools/arduino-esp32/compile.cmd
+
+# Desktop installers (electron-builder)
+dist-desktop/

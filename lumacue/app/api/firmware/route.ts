@@ -32,7 +32,9 @@ export async function GET(request: Request) {
   const board = new URL(request.url).searchParams.get('board') === 'esp32' ? 'esp32' : 'nano'
   const { root, files: FILES } = BOARDS[board]
   // Read at request time from the repo next to the app (turbopackIgnore: don't trace it into the build).
-  const ROOT = path.join(/*turbopackIgnore: true*/ process.cwd(), '..', 'firmware', root)
+  // The desktop app sets LUMACUE_FIRMWARE_DIR (the firmware is bundled with the installer).
+  const FIRMWARE_DIR = process.env.LUMACUE_FIRMWARE_DIR || path.join(/*turbopackIgnore: true*/ process.cwd(), '..', 'firmware')
+  const ROOT = path.join(/*turbopackIgnore: true*/ FIRMWARE_DIR, root)
   try {
     const entries = await Promise.all(
       Object.entries(FILES).map(async ([key, rel]) => [key, await readFile(path.join(/*turbopackIgnore: true*/ ROOT, rel), 'utf8')] as const),
