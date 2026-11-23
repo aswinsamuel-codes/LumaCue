@@ -11,8 +11,31 @@ const GPIOController = require('./gpio-controller');
 const Logger = require('./logger');
 require('dotenv').config();
 
+const crypto = require('crypto');
+
 const PORT = process.env.WS_PORT || 8080;
 const HOST = process.env.WS_HOST || '0.0.0.0';
+// Security (see SECURITY.md). Anyone on the same network can reach this port, so:
+//  - WS_TOKEN: shared secret clients must send as ?token=... (strongly recommended)
+//  - WS_ALLOWED_ORIGINS: comma-separated browser origins allowed to connect
+const TOKEN = process.env.WS_TOKEN || '';
+const ALLOWED_ORIGINS = (process.env.WS_ALLOWED_ORIGINS || '')
+  .split(',').map((s) => s.trim()).filter(Boolean);
+const MAX_PAYLOAD = 16 * 1024;
+
+function tokenMatches(given) {
+  if (!TOKEN) return true;
+  const a = Buffer.from(String(given || ''));
+  const b = Buffer.from(TOKEN);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+function verifyClient(info) {
+  const origin = info.origin || info.req.headers.origin;
+  if (ALLOWED_ORIGINS.length && origin && !ALLOWED_ORIGINS.includes(origin)) return false;
+  const url = new URL(info.req.url || '/', 'ws://localhost');
+  return tokenMatches(url.searchParams.get('token'));
+}
 
 class HardwareServer {
   constructor() {
@@ -35,8 +58,13 @@ class HardwareServer {
       this.wss = new WebSocket.Server({ 
         host: HOST,
         port: PORT,
-        clientTracking: true
+        clientTracking: true,
+        maxPayload: MAX_PAYLOAD,
+        verifyClient
       });
+      if (!TOKEN && HOST !== '127.0.0.1') {
+        this.logger.warn('WS_TOKEN is not set: any device on this network can control the lights. Set WS_TOKEN in .env.');
+      }
 
       this.setupWebSocketHandlers();
       this.startHeartbeat();

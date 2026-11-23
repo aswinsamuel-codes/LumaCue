@@ -1,19 +1,29 @@
 {
   "name": "pov-stage",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
+  "description": "Light shows for LED dance costumes",
+  "author": "Aswin Samuel",
+  "homepage": "https://github.com/aswinsamuel-codes/LumaCue",
+  "license": "MIT",
+  "main": "desktop/main.cjs",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "desktop": "npm run build:standalone && electron desktop/main.cjs",
+    "desktop:dev": "electron desktop/main.cjs --dev",
+    "desktop:dist": "npm run build:standalone && electron-builder --publish never",
+    "desktop:pack": "npm run build:standalone && electron-builder --dir --publish never",
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
-    "check": "tsc --noEmit && eslint . && vitest run"
+    "check": "tsc --noEmit && eslint . && vitest run",
+    "build:standalone": "next build && node desktop/prepare-standalone.cjs"
   },
   "dependencies": {
     "framer-motion": "^11.18.2",
-    "next": "16.2.1",
+    "next": "^16.4.6",
     "react": "19.2.4",
     "react-colorful": "^5.6.1",
     "react-dom": "19.2.4",
@@ -22,15 +32,20 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
+    "@types/node": "^22.20.5",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/three": "0.170.0",
     "babel-plugin-react-compiler": "1.0.0",
+    "electron": "^42.11.18",
+    "electron-builder": "^26.18.0",
     "eslint": "^9",
-    "eslint-config-next": "16.2.1",
+    "eslint-config-next": "^16.4.6",
     "tailwindcss": "^4",
     "typescript": "^5",
-    "vitest": "^3.2.7"
+    "vitest": "^5.1.1"
+  },
+  "overrides": {
+    "brace-expansion@^1": "^1.1.22"
   }
 }

@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:">
+<title>LumaCue</title>
+<style>
+  html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; user-select: none;
+    font-family: "Segoe UI", system-ui, sans-serif; }
+  .card { position: absolute; inset: 20px; border-radius: 36px; background: radial-gradient(120% 120% at 30% 20%, #1b1530 0%, #08070c 70%);
+    box-shadow: 0 30px 80px rgba(0,0,0,.6), inset 0 0 0 1px rgba(255,255,255,.06);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; -webkit-app-region: drag;
+    animation: card-in .5s ease-out both; }
+  .halo { position: absolute; width: 280px; height: 280px; border-radius: 50%; filter: blur(50px); opacity: .35;
+    background: conic-gradient(from 0deg, #22d3ee, #a855f7, #ec4899, #22d3ee); animation: spin 6s linear infinite; }
+  svg { position: relative; width: 190px; height: 190px; }
+  .dot { opacity: .12; animation: dot 2.2s ease-out infinite; }
+  .arc { stroke-dasharray: 101; stroke-dashoffset: 101; animation: arc 2.2s ease-in-out infinite; }
+  .cue { opacity: 0; transform-origin: 89.25px 48.75px; animation: cue 2.2s ease-out infinite; }
+  h1 { position: relative; margin: 18px 0 4px; color: #fff; font-size: 30px; letter-spacing: .14em; font-weight: 700; }
+  h1 span { color: rgba(255,255,255,.4); }
+  p { position: relative; margin: 0; color: rgba(255,255,255,.35); font: 12px/1.4 Consolas, monospace; letter-spacing: .2em; }
+  .bar { position: relative; margin-top: 22px; width: 180px; height: 3px; border-radius: 3px; background: rgba(255,255,255,.08); overflow: hidden; }
+  .bar::after { content: ""; position: absolute; inset: 0; width: 40%; border-radius: 3px;
+    background: linear-gradient(90deg, #22d3ee, #a855f7, #ec4899); animation: slide 1.4s ease-in-out infinite; }
+  @keyframes dot { 0% { opacity: .12 } 10% { opacity: 1 } 70% { opacity: 1 } 100% { opacity: .12 } }
+  @keyframes arc { 0%, 35% { stroke-dashoffset: 101 } 65%, 80% { stroke-dashoffset: 0 } 100% { stroke-dashoffset: -101 } }
+  @keyframes cue { 0%, 60% { opacity: 0; transform: scale(.2) } 70% { opacity: 1; transform: scale(1.7) } 85% { opacity: 1; transform: scale(1) } 100% { opacity: 0 } }
+  @keyframes spin { to { transform: rotate(360deg) } }
+  @keyframes slide { 0% { transform: translateX(-100%) } 100% { transform: translateX(260%) } }
+  @keyframes card-in { from { opacity: 0; transform: scale(.94) } to { opacity: 1; transform: scale(1) } }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; } .dot, .cue { opacity: 1; } .arc { stroke-dashoffset: 0; } }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="halo"></div>
+    <svg viewBox="0 0 128 128" aria-label="LumaCue">
+      <defs>
+        <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#22D3EE"/><stop offset=".5" stop-color="#A855F7"/><stop offset="1" stop-color="#EC4899"/>
+        </linearGradient>
+        <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="2.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+      </defs>
+      <path class="arc" d="M44 30 A64 64 0 0 1 108 94" fill="none" stroke="url(#g)" stroke-width="4" stroke-linecap="round" filter="url(#glow)"/>
+      <g fill="url(#g)" filter="url(#glow)">
+        <circle class="dot" cx="44" cy="30" r="6" style="animation-delay:0s"/>
+        <circle class="dot" cx="44" cy="46" r="6" style="animation-delay:.1s"/>
+        <circle class="dot" cx="44" cy="62" r="6" style="animation-delay:.2s"/>
+        <circle class="dot" cx="44" cy="78" r="6" style="animation-delay:.3s"/>
+        <circle class="dot" cx="44" cy="94" r="6" style="animation-delay:.4s"/>
+        <circle class="dot" cx="60" cy="94" r="6" style="animation-delay:.5s"/>
+        <circle class="dot" cx="76" cy="94" r="6" style="animation-delay:.6s"/>
+        <circle class="dot" cx="92" cy="94" r="6" style="animation-delay:.7s"/>
+      </g>
+      <circle class="cue" cx="89.25" cy="48.75" r="5" fill="#fff" filter="url(#glow)"/>
+    </svg>
+    <h1>LUMA<span>CUE</span></h1>
+    <p>STARTING SHOW STUDIO</p>
+    <div class="bar"></div>
+  </div>
+</body>
+</html>

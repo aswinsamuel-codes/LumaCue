@@ -1,0 +1,66 @@
+# Desktop installers for Windows, Linux and macOS.
+# Build: npm run desktop:dist   (CI: .github/workflows/desktop-release.yml builds all three on a version tag)
+appId: com.lumacue.app
+productName: LumaCue
+copyright: Copyright © 2026 Aswin Samuel
+extraMetadata:
+  name: lumacue
+  main: desktop/main.cjs
+directories:
+  output: dist-desktop
+  buildResources: desktop
+# The app itself is only the Electron shell. Show Studio ships as the trimmed
+# Next.js standalone server in resources/app-server (run `npm run build:standalone` first).
+asar: true
+files:
+  - desktop/main.cjs
+  - desktop/preload.cjs
+  - desktop/security.cjs
+  - desktop/splash.html
+  - desktop/icon.png
+  - package.json
+  - "!node_modules/**"
+extraResources:
+  - from: .next/standalone
+    to: app-server
+    filter: ["**/*"]
+  - from: ../firmware
+    to: firmware
+    filter:
+      - "**/*.ino"
+      - "**/*.h"
+      - "**/*.md"
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: desktop/icon.ico
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  shortcutName: LumaCue
+  artifactName: LumaCue-Setup-${version}-win-x64.${ext}
+linux:
+  target: [deb, AppImage]
+  category: AudioVideo
+  icon: desktop/icon.png
+  maintainer: LumaCue Project <lumacue@users.noreply.github.com>
+  synopsis: Light shows for LED dance costumes
+  artifactName: LumaCue-${version}-linux-${arch}.${ext}
+deb:
+  # Web Serial needs the user in the dialout group to open /dev/ttyUSB*.
+  afterInstall: desktop/linux-after-install.sh
+mac:
+  target:
+    - target: dmg
+      arch: [x64, arm64]
+  category: public.app-category.music
+  icon: desktop/icon.png
+  artifactName: LumaCue-${version}-mac-${arch}.${ext}
+  hardenedRuntime: true
+  # Unsigned until an Apple Developer ID is available: users right-click → Open on first launch.
+  identity: null
+afterPack: desktop/after-pack.cjs
+publish: null

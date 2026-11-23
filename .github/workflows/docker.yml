@@ -1,0 +1,26 @@
+# Builds the web-version Docker image and checks that it serves Show Studio.
+name: Docker image
+
+on:
+  push:
+    paths: ['lumacue/**', 'firmware/**', '.github/workflows/docker.yml', '.dockerignore']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -f lumacue/Dockerfile -t lumacue:ci .
+      - name: Smoke test
+        run: |
+          docker run -d --name lc -p 127.0.0.1:3000:3000 lumacue:ci
+          for i in $(seq 1 30); do curl -fs http://127.0.0.1:3000/ >/dev/null && break; sleep 2; done
+          curl -fs http://127.0.0.1:3000/ | grep -q LumaCue
+          curl -fs "http://127.0.0.1:3000/api/firmware?board=nano" | grep -q baseIno
+          test "$(docker exec lc id -u)" != "0"   # not running as root
+          docker rm -f lc
